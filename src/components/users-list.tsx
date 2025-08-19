@@ -48,6 +48,34 @@ import {
   Eye,
   UserMinus
 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Mock data for users
 const mockUsers = [
@@ -145,11 +173,11 @@ const mockUsers = [
 
 // Mock projects for assignment
 const mockProjects = [
-  { id: 1, name: "Document Management System v2.0" },
-  { id: 2, name: "API Documentation Portal" },
-  { id: 3, name: "Compliance Audit System" },
-  { id: 4, name: "Security Enhancement Project" },
-  { id: 5, name: "Mobile App Integration" }
+  { id: 1, name: "Document Management System v2.0", status: "active" },
+  { id: 2, name: "API Documentation Portal", status: "active" },
+  { id: 3, name: "Compliance Audit System", status: "pending" },
+  { id: 4, name: "Security Enhancement Project", status: "active" },
+  { id: 5, name: "Mobile App Integration", status: "planning" }
 ];
 
 const statusConfig = {
@@ -182,6 +210,12 @@ export function UsersList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isViewProfileOpen, setIsViewProfileOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isAssignProjectsOpen, setIsAssignProjectsOpen] = useState(false);
+  const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [users, setUsers] = useState(mockUsers);
   const [newUser, setNewUser] = useState<NewUser>({
     name: "",
     email: "",
@@ -193,7 +227,7 @@ export function UsersList() {
     permissions: ["read"]
   });
 
-  const filteredUsers = mockUsers.filter(user => {
+  const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -204,22 +238,24 @@ export function UsersList() {
     return matchesSearch && matchesStatus && matchesDepartment;
   });
 
-  const departments = Array.from(new Set(mockUsers.map(user => user.department)));
+  const departments = Array.from(new Set(users.map(user => user.department)));
 
   const handleAddUser = () => {
     // Here you would typically send the data to your API
-    console.log("Adding user:", newUser);
+    const newUserId = Math.max(...users.map(u => u.id)) + 1;
+    const userToAdd = {
+      id: newUserId,
+      ...newUser,
+      status: "active",
+      avatar: "",
+      joinDate: new Date().toISOString().split('T')[0],
+      lastActive: new Date().toISOString()
+    };
+    
+    setUsers(prev => [...prev, userToAdd]);
+    console.log("Adding user:", userToAdd);
     setIsAddUserOpen(false);
-    setNewUser({
-      name: "",
-      email: "",
-      phone: "",
-      role: "",
-      department: "",
-      location: "",
-      projects: [],
-      permissions: ["read"]
-    });
+    resetNewUserForm();
   };
 
   const handleProjectToggle = (projectName: string) => {
@@ -238,6 +274,102 @@ export function UsersList() {
         ? prev.permissions.filter(p => p !== permission)
         : [...prev.permissions, permission]
     }));
+  };
+
+  // Action handlers
+  const handleViewProfile = (user: any) => {
+    setSelectedUser(user);
+    setIsViewProfileOpen(true);
+  };
+
+  const handleEditUser = (user: any) => {
+    setSelectedUser(user);
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      department: user.department,
+      location: user.location,
+      projects: user.projects,
+      permissions: user.permissions
+    });
+    setIsEditUserOpen(true);
+  };
+
+  const handleAssignProjects = (user: any) => {
+    setSelectedUser(user);
+    setIsAssignProjectsOpen(true);
+  };
+
+  const handleToggleUserStatus = (userId: number) => {
+    setUsers(prev => prev.map(user => 
+      user.id === userId 
+        ? { ...user, status: user.status === "active" ? "inactive" : "active" }
+        : user
+    ));
+  };
+
+  const handleDeleteUser = (user: any) => {
+    setSelectedUser(user);
+    setIsDeleteUserOpen(true);
+  };
+
+  const confirmDeleteUser = () => {
+    if (selectedUser) {
+      setUsers(prev => prev.filter(user => user.id !== selectedUser.id));
+      setIsDeleteUserOpen(false);
+      setSelectedUser(null);
+    }
+  };
+
+  const handleUpdateUser = () => {
+    if (selectedUser) {
+      setUsers(prev => prev.map(user => 
+        user.id === selectedUser.id 
+          ? { 
+              ...user, 
+              name: newUser.name,
+              email: newUser.email,
+              phone: newUser.phone,
+              role: newUser.role,
+              department: newUser.department,
+              location: newUser.location,
+              projects: newUser.projects,
+              permissions: newUser.permissions
+            }
+          : user
+      ));
+      setIsEditUserOpen(false);
+      setSelectedUser(null);
+      resetNewUserForm();
+    }
+  };
+
+  const handleUpdateUserProjects = () => {
+    if (selectedUser) {
+      setUsers(prev => prev.map(user => 
+        user.id === selectedUser.id 
+          ? { ...user, projects: newUser.projects }
+          : user
+      ));
+      setIsAssignProjectsOpen(false);
+      setSelectedUser(null);
+      resetNewUserForm();
+    }
+  };
+
+  const resetNewUserForm = () => {
+    setNewUser({
+      name: "",
+      email: "",
+      phone: "",
+      role: "",
+      department: "",
+      location: "",
+      projects: [],
+      permissions: ["read"]
+    });
   };
 
   const getInitials = (name: string) => {
@@ -561,24 +693,27 @@ export function UsersList() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleViewProfile(user)}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleEditUser(user)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit User
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleAssignProjects(user)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Assign Projects
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleToggleUserStatus(user.id)}>
                     <UserMinus className="h-4 w-4 mr-2" />
                     {user.status === "active" ? "Deactivate" : "Activate"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem 
+                    className="text-destructive" 
+                    onClick={() => handleDeleteUser(user)}
+                  >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete User
                   </DropdownMenuItem>
@@ -609,6 +744,272 @@ export function UsersList() {
           )}
         </div>
       )}
+
+      {/* View Profile Dialog */}
+      <Dialog open={isViewProfileOpen} onOpenChange={setIsViewProfileOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>User Profile</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-6">
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedUser.avatar} />
+                  <AvatarFallback>
+                    {selectedUser.name.split(' ').map((n: string) => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
+                  <p className="text-muted-foreground">{selectedUser.role}</p>
+                  <Badge variant={selectedUser.status === 'active' ? 'default' : 'secondary'}>
+                    {selectedUser.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Phone</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.phone}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Department</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.department}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Location</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.location}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Join Date</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.joinDate}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Last Active</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.lastActive}</p>
+                </div>
+              </div>
+
+              {selectedUser.projects && selectedUser.projects.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-medium">Assigned Projects</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedUser.projects.map((project: string, index: number) => (
+                        <Badge key={index} variant="outline">
+                          {project}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information and settings.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={selectedUser.name}
+                    onChange={(e) => setSelectedUser({
+                      ...selectedUser,
+                      name: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={selectedUser.email}
+                    onChange={(e) => setSelectedUser({
+                      ...selectedUser,
+                      email: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Role</Label>
+                  <Select
+                    value={selectedUser.role}
+                    onValueChange={(value) => setSelectedUser({
+                      ...selectedUser,
+                      role: value
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Project Manager">Project Manager</SelectItem>
+                      <SelectItem value="Engineer">Engineer</SelectItem>
+                      <SelectItem value="Designer">Designer</SelectItem>
+                      <SelectItem value="Analyst">Analyst</SelectItem>
+                      <SelectItem value="User">User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-department">Department</Label>
+                  <Select
+                    value={selectedUser.department}
+                    onValueChange={(value) => setSelectedUser({
+                      ...selectedUser,
+                      department: value
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Design">Design</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Sales">Sales</SelectItem>
+                      <SelectItem value="HR">HR</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Input
+                    id="edit-phone"
+                    value={selectedUser.phone}
+                    onChange={(e) => setSelectedUser({
+                      ...selectedUser,
+                      phone: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-location">Location</Label>
+                  <Input
+                    id="edit-location"
+                    value={selectedUser.location}
+                    onChange={(e) => setSelectedUser({
+                      ...selectedUser,
+                      location: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateUser}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Projects Dialog */}
+      <Dialog open={isAssignProjectsOpen} onOpenChange={setIsAssignProjectsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Projects</DialogTitle>
+            <DialogDescription>
+              Select projects to assign to {selectedUser?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <ScrollArea className="h-48">
+              <div className="space-y-2">
+                {mockProjects.map((project) => (
+                  <div key={project.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`project-${project.id}`}
+                      checked={selectedUser?.projects?.includes(project.name) || false}
+                      onCheckedChange={(checked) => {
+                        if (selectedUser) {
+                          const currentProjects = selectedUser.projects || [];
+                          const newProjects = checked
+                            ? [...currentProjects, project.name]
+                            : currentProjects.filter((p: string) => p !== project.name);
+                          setSelectedUser({
+                            ...selectedUser,
+                            projects: newProjects
+                          });
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`project-${project.id}`} className="text-sm">
+                      {project.name}
+                    </Label>
+                    <Badge variant="outline" className="text-xs">
+                      {project.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAssignProjectsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateUserProjects}>
+              Update Projects
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={isDeleteUserOpen} onOpenChange={setIsDeleteUserOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedUser?.name}? This action cannot be undone.
+              The user will be permanently removed from all projects and their access will be revoked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
