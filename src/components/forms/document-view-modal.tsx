@@ -35,9 +35,14 @@ interface DocumentViewModalProps {
 
 const statusConfig = {
   draft: { label: "Draft", variant: "secondary" as const, color: "text-gray-600" },
-  "under-review": { label: "Under Review", variant: "warning" as const, color: "text-yellow-600" },
+  pending: { label: "Pending", variant: "secondary" as const, color: "text-gray-600" },
+  pending_review: { label: "Pending Review", variant: "secondary" as const, color: "text-blue-600" },
+  under_review: { label: "Under Review", variant: "warning" as const, color: "text-yellow-600" },
   approved: { label: "Approved", variant: "success" as const, color: "text-green-600" },
   rejected: { label: "Rejected", variant: "destructive" as const, color: "text-red-600" },
+  archived: { label: "Archived", variant: "outline" as const, color: "text-gray-500" },
+  checked_out: { label: "Checked Out", variant: "info" as const, color: "text-blue-600" },
+  final: { label: "Final", variant: "default" as const, color: "text-gray-900" },
 };
 
 export function DocumentViewModal({ 
@@ -47,6 +52,17 @@ export function DocumentViewModal({
   onEdit 
 }: DocumentViewModalProps) {
   if (!document) return null;
+
+  // Get status configuration with fallback
+  const getStatusConfig = (status: string) => {
+    return statusConfig[status as keyof typeof statusConfig] || {
+      label: status.charAt(0).toUpperCase() + status.slice(1),
+      variant: "secondary" as const,
+      color: "text-gray-600"
+    };
+  };
+
+  const currentStatusConfig = getStatusConfig(document.status);
 
   const handleDownload = () => {
     // In a real app, this would download the actual file
@@ -86,11 +102,11 @@ export function DocumentViewModal({
                 <h2 className="text-2xl font-bold mb-2">{document.name}</h2>
                 <div className="flex items-center gap-3 mb-4">
                   <Badge 
-                    variant={statusConfig[document.status as keyof typeof statusConfig].variant}
+                    variant={currentStatusConfig.variant}
                     className="flex items-center gap-1"
                   >
-                    <div className={`w-2 h-2 rounded-full ${statusConfig[document.status as keyof typeof statusConfig].color}`} />
-                    {statusConfig[document.status as keyof typeof statusConfig].label}
+                    <div className={`w-2 h-2 rounded-full ${currentStatusConfig.color}`} />
+                    {currentStatusConfig.label}
                   </Badge>
                   <Badge variant="outline" className="flex items-center gap-1">
                     <Tag className="h-3 w-3" />
@@ -196,7 +212,7 @@ export function DocumentViewModal({
                     <Eye className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm text-muted-foreground">Status</span>
-                      <p className="font-medium">{statusConfig[document.status as keyof typeof statusConfig].label}</p>
+                      <p className="font-medium">{currentStatusConfig.label}</p>
                     </div>
                   </div>
 
