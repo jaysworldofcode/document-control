@@ -94,6 +94,7 @@ export default function SettingsPage() {
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<string | null>(null);
+  const [isEditingOrganization, setIsEditingOrganization] = useState(false);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -125,6 +126,13 @@ export default function SettingsPage() {
     clientSecret: MOCK_ORGANIZATION_SETTINGS.azure.clientSecret,
     sharePointSiteUrl: MOCK_ORGANIZATION_SETTINGS.azure.sharePointSiteUrl,
     defaultFolderPath: MOCK_ORGANIZATION_SETTINGS.azure.defaultFolderPath,
+  });
+
+  // Organization form state
+  const [organizationForm, setOrganizationForm] = useState({
+    name: MOCK_ORGANIZATION_SETTINGS.general.name,
+    domain: MOCK_ORGANIZATION_SETTINGS.general.domain,
+    logo: MOCK_ORGANIZATION_SETTINGS.general.logo,
   });
 
   const handleProfileUpdate = () => {
@@ -177,6 +185,13 @@ export default function SettingsPage() {
     // In a real app, this would call an API to update Azure credentials
     console.log("Azure credentials updated:", azureForm);
     setIsEditingAzure(false);
+    // Show success message or handle API response
+  };
+
+  const handleOrganizationUpdate = () => {
+    // In a real app, this would call an API to update organization details
+    console.log("Organization updated:", organizationForm);
+    setIsEditingOrganization(false);
     // Show success message or handle API response
   };
 
@@ -578,20 +593,95 @@ export default function SettingsPage() {
                         <Building className="h-10 w-10 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold">{MOCK_ORGANIZATION_SETTINGS.general.name}</h3>
-                        <p className="text-muted-foreground">{MOCK_ORGANIZATION_SETTINGS.general.domain}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline">Pro Plan</Badge>
-                          <Badge variant="secondary">12/50 Users</Badge>
-                        </div>
+                        {!isEditingOrganization ? (
+                          <>
+                            <h3 className="text-xl font-semibold">{organizationForm.name}</h3>
+                            <p className="text-muted-foreground">{organizationForm.domain}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant="outline">Pro Plan</Badge>
+                              <Badge variant="secondary">12/50 Users</Badge>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="orgName">Organization Name</Label>
+                              <Input
+                                id="orgName"
+                                value={organizationForm.name}
+                                onChange={(e) => setOrganizationForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Enter organization name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="orgDomain">Domain</Label>
+                              <Input
+                                id="orgDomain"
+                                value={organizationForm.domain}
+                                onChange={(e) => setOrganizationForm(prev => ({ ...prev, domain: e.target.value }))}
+                                placeholder="company.com"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground">Your Role</p>
                         <Badge variant="default" className="mt-1">
                           {CURRENT_USER_ROLE.charAt(0).toUpperCase() + CURRENT_USER_ROLE.slice(1)}
                         </Badge>
+                        <div className="mt-3">
+                          {!isEditingOrganization ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsEditingOrganization(true)}
+                              disabled={!CURRENT_USER_PERMISSIONS.canEditOrganization}
+                            >
+                              <SettingsIcon className="h-4 w-4 mr-2" />
+                              Edit Details
+                            </Button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleOrganizationUpdate}
+                              >
+                                <Check className="h-4 w-4 mr-2" />
+                                Save
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setIsEditingOrganization(false);
+                                  setOrganizationForm({
+                                    name: MOCK_ORGANIZATION_SETTINGS.general.name,
+                                    domain: MOCK_ORGANIZATION_SETTINGS.general.domain,
+                                    logo: MOCK_ORGANIZATION_SETTINGS.general.logo,
+                                  });
+                                }}
+                              >
+                                <X className="h-4 w-4 mr-2" />
+                                Cancel
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    {/* Permission notice for non-owners */}
+                    {!CURRENT_USER_PERMISSIONS.canEditOrganization && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <Info className="h-4 w-4 text-amber-600 mt-0.5" />
+                          <p className="text-sm text-amber-800">
+                            Only organization owners can edit organization details.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
