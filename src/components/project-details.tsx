@@ -56,6 +56,7 @@ import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/cons
 import { Project } from "@/types/project.types";
 import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
 import { AddDocumentModal } from "@/components/forms/add-document-modal";
+import { EditDocumentModal, DocumentUpdateData } from "@/components/forms/edit-document-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 
@@ -70,6 +71,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
 
   // Find the project
   const project = useMemo(() => 
@@ -503,9 +505,9 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setEditingDocument(document)}>
                                 <Edit className="h-4 w-4 mr-2" />
-                                Edit
+                                Edit & Upload Version
                               </DropdownMenuItem>
                               <DropdownMenuItem>
                                 <History className="h-4 w-4 mr-2" />
@@ -615,6 +617,21 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         }}
         project={project}
       />
+
+      {/* Edit Document Modal */}
+      {editingDocument && (
+        <EditDocumentModal
+          isOpen={editingDocument !== null}
+          onClose={() => setEditingDocument(null)}
+          onSubmit={async (data: DocumentUpdateData) => {
+            console.log("Updating document:", editingDocument.id, data);
+            // Here you would call the API to update the document
+            setEditingDocument(null);
+          }}
+          document={editingDocument}
+          project={project}
+        />
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed' | 'archived';
 export type ProjectPriority = 'low' | 'medium' | 'high' | 'critical';
-export type CustomFieldType = 'text' | 'number' | 'checkbox' | 'date' | 'select';
+export type CustomFieldType = 'text' | 'textarea' | 'number' | 'checkbox' | 'boolean' | 'date' | 'select' | 'file';
 
 // SharePoint Integration Types
 export interface SharePointConfig {
@@ -261,8 +261,11 @@ export const PROJECT_PRIORITIES: { value: ProjectPriority; label: string; color:
 
 export const CUSTOM_FIELD_TYPES: { value: CustomFieldType; label: string; description: string }[] = [
   { value: 'text', label: 'Text Field', description: 'Single line text input' },
+  { value: 'textarea', label: 'Text Area', description: 'Multi-line text input' },
   { value: 'number', label: 'Number Field', description: 'Numeric input with validation' },
   { value: 'checkbox', label: 'Checkbox', description: 'True/false checkbox field' },
+  { value: 'boolean', label: 'Boolean Switch', description: 'True/false toggle switch' },
   { value: 'date', label: 'Date Picker', description: 'Date selection field' },
-  { value: 'select', label: 'Dropdown Select', description: 'Predefined options dropdown' }
+  { value: 'select', label: 'Dropdown Select', description: 'Predefined options dropdown' },
+  { value: 'file', label: 'File Upload', description: 'File attachment field' }
 ];
