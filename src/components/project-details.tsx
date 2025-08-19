@@ -54,7 +54,10 @@ import {
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project } from "@/types/project.types";
-import { Document, DocumentStatus } from "@/types/document.types";
+import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
+import { AddDocumentModal } from "@/components/forms/add-document-modal";
+import { TeamMemberManagement } from "@/components/team-member-management";
+import { ProjectSettings } from "@/components/project-settings";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -65,6 +68,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all");
   const [activeTab, setActiveTab] = useState("overview");
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
 
   // Find the project
   const project = useMemo(() => 
@@ -234,7 +239,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <TabsTrigger value="documents">
             Documents ({documentStats.total})
           </TabsTrigger>
-          <TabsTrigger value="workflow">Workflow</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -405,7 +410,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
-              <Button>
+              <Button onClick={() => setIsUploadModalOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Document
               </Button>
@@ -453,7 +458,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 <TableBody>
                   {filteredDocuments.map((document) => {
                     const statusConfig = DOCUMENT_STATUS_CONFIG[document.status];
-                    const fileConfig = FILE_TYPE_CONFIG[document.fileType] || FILE_TYPE_CONFIG.default;
+                    const fileConfig = FILE_TYPE_CONFIG[document.fileType as keyof typeof FILE_TYPE_CONFIG] || FILE_TYPE_CONFIG.default;
                     
                     return (
                       <TableRow key={document.id}>
@@ -563,23 +568,53 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           </Card>
         </TabsContent>
 
+        {/* Team Management Tab */}
+        <TabsContent value="team" className="space-y-4">
+          <TeamMemberManagement
+            project={project}
+            onUpdateTeam={async (members, memberIds) => {
+              console.log("Updating team:", members, memberIds);
+              // Here you would call the API to update team members
+            }}
+            onUpdateManager={async (manager, managerId) => {
+              console.log("Updating manager:", manager, managerId);
+              // Here you would call the API to update project manager
+            }}
+          />
+        </TabsContent>
+
         {/* Settings Tab */}
         <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Settings</CardTitle>
-              <CardDescription>
-                Configure project permissions, notifications, and integrations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Project settings and configuration options will be displayed here.
-              </p>
-            </CardContent>
-          </Card>
+          <ProjectSettings
+            project={project}
+            onUpdateProject={async (updates) => {
+              console.log("Updating project:", updates);
+              // Here you would call the API to update project
+            }}
+            onArchiveProject={async () => {
+              console.log("Archiving project:", project.id);
+              // Here you would call the API to archive project
+              router.push("/projects");
+            }}
+            onDeleteProject={async () => {
+              console.log("Deleting project:", project.id);
+              // Here you would call the API to delete project
+              router.push("/projects");
+            }}
+          />
         </TabsContent>
       </Tabs>
+
+      {/* Upload Document Modal */}
+      <AddDocumentModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onSubmit={async (data: DocumentUploadData) => {
+          console.log("Uploading document:", data);
+          // Here you would call the API to upload the document
+        }}
+        project={project}
+      />
     </div>
   );
 }
