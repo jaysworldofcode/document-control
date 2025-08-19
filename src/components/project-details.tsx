@@ -57,6 +57,8 @@ import { Project } from "@/types/project.types";
 import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
 import { AddDocumentModal } from "@/components/forms/add-document-modal";
 import { EditDocumentModal, DocumentUpdateData } from "@/components/forms/edit-document-modal";
+import { DocumentViewModal } from "@/components/forms/document-view-modal";
+import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 
@@ -72,6 +74,18 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+
+  const handleDownloadDocument = (document: Document) => {
+    // In a real app, this would download the actual file
+    console.log("Downloading document:", document.fileName);
+    // Create a temporary link to simulate download
+    const link = window.document.createElement('a');
+    link.href = '#';
+    link.download = document.fileName;
+    link.click();
+  };
 
   // Find the project
   const project = useMemo(() => 
@@ -497,11 +511,11 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setViewingDocument(document)}>
                                 <Eye className="h-4 w-4 mr-2" />
                                 View
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadDocument(document)}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
                               </DropdownMenuItem>
@@ -509,7 +523,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit & Upload Version
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setVersionHistoryDocument(document)}>
                                 <History className="h-4 w-4 mr-2" />
                                 Version History
                               </DropdownMenuItem>
@@ -632,6 +646,28 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           project={project}
         />
       )}
+
+      {/* Document View Modal */}
+      <DocumentViewModal
+        isOpen={viewingDocument !== null}
+        onClose={() => setViewingDocument(null)}
+        document={viewingDocument}
+        onEdit={(document) => {
+          setViewingDocument(null);
+          setEditingDocument(document);
+        }}
+      />
+
+      {/* Version History Modal */}
+      <VersionHistoryModal
+        isOpen={versionHistoryDocument !== null}
+        onClose={() => setVersionHistoryDocument(null)}
+        document={versionHistoryDocument}
+        onViewVersion={(version) => {
+          console.log("Viewing version:", version, "of document:", versionHistoryDocument?.name);
+          // Here you would implement version viewing functionality
+        }}
+      />
     </div>
   );
 }
