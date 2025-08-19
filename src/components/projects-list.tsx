@@ -219,20 +219,6 @@ export function ProjectsList() {
               {project.description}
             </p>
 
-            {/* Project Progress */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Progress</span>
-                <span className="text-sm text-muted-foreground">{project.progress}%</span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${project.progress}%` }}
-                />
-              </div>
-            </div>
-
             {/* Project Details */}
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
