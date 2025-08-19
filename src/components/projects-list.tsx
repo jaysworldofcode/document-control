@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ const priorityConfig = {
 };
 
 export function ProjectsList() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -191,7 +193,7 @@ export function ProjectsList() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}`)}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
@@ -257,7 +259,7 @@ export function ProjectsList() {
                 <span className="text-muted-foreground">Budget:</span>
                 <span className="font-medium ml-1">{project.budget}</span>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${project.id}`)}>
                 <Eye className="h-4 w-4 mr-2" />
                 View
               </Button>
