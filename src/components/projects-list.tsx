@@ -12,6 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProjectForm } from "@/components/forms/project-form";
+import { Project, ProjectFormData } from "@/types/project.types";
+import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { 
   Plus, 
   Search, 
@@ -27,84 +30,8 @@ import {
   ExternalLink
 } from "lucide-react";
 
-// Mock data for projects
-const mockProjects = [
-  {
-    id: 1,
-    name: "Document Management System v2.0",
-    description: "Comprehensive upgrade of the current document management platform with enhanced security and user experience.",
-    status: "active",
-    priority: "high",
-    manager: "Sarah Wilson",
-    team: ["John Doe", "Jane Smith", "Mike Johnson"],
-    startDate: "2024-01-15",
-    endDate: "2024-06-30",
-    progress: 75,
-    documentsCount: 142,
-    budget: "$125,000",
-    client: "TechCorp Industries"
-  },
-  {
-    id: 2,
-    name: "API Documentation Portal",
-    description: "Creation of a comprehensive API documentation portal for external developers and partners.",
-    status: "planning",
-    priority: "medium",
-    manager: "David Chen",
-    team: ["Alice Brown", "Bob Wilson"],
-    startDate: "2024-03-01",
-    endDate: "2024-05-15",
-    progress: 25,
-    documentsCount: 23,
-    budget: "$45,000",
-    client: "DevPartners LLC"
-  },
-  {
-    id: 3,
-    name: "Compliance Audit System",
-    description: "Implementation of automated compliance checking and audit trail system for document workflows.",
-    status: "completed",
-    priority: "high",
-    manager: "Emily Rodriguez",
-    team: ["Tom Anderson", "Lisa Garcia", "Mark Thompson", "Anna Davis"],
-    startDate: "2023-10-01",
-    endDate: "2024-01-31",
-    progress: 100,
-    documentsCount: 89,
-    budget: "$85,000",
-    client: "FinanceSecure Corp"
-  },
-  {
-    id: 4,
-    name: "Mobile App Integration",
-    description: "Development of mobile application for document access and basic editing capabilities.",
-    status: "on-hold",
-    priority: "low",
-    manager: "Chris Taylor",
-    team: ["Sam Wilson", "Amy Johnson"],
-    startDate: "2024-02-15",
-    endDate: "2024-08-30",
-    progress: 15,
-    documentsCount: 12,
-    budget: "$95,000",
-    client: "MobileTech Solutions"
-  },
-  {
-    id: 5,
-    name: "Security Enhancement Project",
-    description: "Comprehensive security audit and implementation of advanced security measures across all systems.",
-    status: "active",
-    priority: "critical",
-    manager: "Alex Kumar",
-    team: ["Ryan Lee", "Sophie Chen", "Michael Brown"],
-    startDate: "2024-01-01",
-    endDate: "2024-04-30",
-    progress: 60,
-    documentsCount: 67,
-    budget: "$150,000",
-    client: "SecureData Inc"
-  }
-];
+// Use the comprehensive mock projects from constants
+const mockProjects = MOCK_PROJECTS;
 
 const statusConfig = {
   active: { label: "Active", variant: "success" as const },
@@ -124,6 +51,8 @@ export function ProjectsList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<string | null>(null);
 
   const filteredProjects = mockProjects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -151,7 +80,7 @@ export function ProjectsList() {
             <ExternalLink className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
@@ -266,7 +195,7 @@ export function ProjectsList() {
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setEditingProject(project.id)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Project
                   </DropdownMenuItem>
@@ -350,12 +279,37 @@ export function ProjectsList() {
               : "Get started by creating your first project."}
           </p>
           {!searchTerm && statusFilter === "all" && priorityFilter === "all" && (
-            <Button>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create Project
             </Button>
           )}
         </div>
+      )}
+
+      {/* Create Project Dialog */}
+      <ProjectForm
+        isOpen={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        onSubmit={async (data) => {
+          console.log("Creating project:", data);
+          setIsCreateDialogOpen(false);
+          // Here you would typically call an API to create the project
+        }}
+      />
+
+      {/* Edit Project Dialog */}
+      {editingProject && (
+        <ProjectForm
+          isOpen={editingProject !== null}
+          onClose={() => setEditingProject(null)}
+          onSubmit={async (data) => {
+            console.log("Updating project:", editingProject, data);
+            setEditingProject(null);
+            // Here you would typically call an API to update the project
+          }}
+          project={mockProjects.find(p => p.id === editingProject)}
+        />
       )}
     </div>
   );

@@ -51,6 +51,11 @@ const navigationItems = [
     icon: Archive,
   },
   {
+    title: "Role & Departments",
+    href: "/role-department",
+    icon: UserCheck,
+  },
+  {
     title: "Settings",
     href: "/settings",
     icon: Settings,
