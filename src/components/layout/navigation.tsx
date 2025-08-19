@@ -21,7 +21,7 @@ const navigationItems = [
     icon: Home,
   },
   {
-    title: "Documents",
+    title: "My Documents",
     href: "/documents",
     icon: FileText,
   },
@@ -29,11 +29,6 @@ const navigationItems = [
     title: "Projects",
     href: "/projects",
     icon: ClipboardList,
-  },
-  {
-    title: "Organizations",
-    href: "/organizations",
-    icon: Building,
   },
   {
     title: "Users",
