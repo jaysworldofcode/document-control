@@ -16,6 +16,7 @@ import {
 import { AppLayout } from "@/components/layout/app-layout";
 import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
+import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { Document } from "@/types/document.types";
@@ -33,7 +34,8 @@ import {
   FileText,
   User,
   Calendar,
-  Folder
+  Folder,
+  ClipboardList
 } from "lucide-react";
 
 const reviewStatusConfig = {
@@ -56,6 +58,7 @@ export default function ApprovalsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "under_review" | "pending_review">("all");
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+  const [logsDocument, setLogsDocument] = useState<Document | null>(null);
 
   // Filter documents that need review
   const reviewDocuments = useMemo(() => {
@@ -305,6 +308,10 @@ export default function ApprovalsPage() {
                               <History className="h-4 w-4 mr-2" />
                               Version History
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setLogsDocument(document)}>
+                              <ClipboardList className="h-4 w-4 mr-2" />
+                              Activity Logs
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -343,6 +350,13 @@ export default function ApprovalsPage() {
           isOpen={versionHistoryDocument !== null}
           onClose={() => setVersionHistoryDocument(null)}
           document={versionHistoryDocument}
+        />
+
+        {/* Document Logs Modal */}
+        <DocumentLogsModal
+          isOpen={logsDocument !== null}
+          onClose={() => setLogsDocument(null)}
+          document={logsDocument}
         />
       </div>
     </AppLayout>

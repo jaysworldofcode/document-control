@@ -25,6 +25,7 @@ import {
 import { AppLayout } from "@/components/layout/app-layout";
 import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
+import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { Document, DocumentStatus } from "@/types/document.types";
@@ -48,7 +49,8 @@ import {
   TrendingUp,
   BarChart3,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  ClipboardList
 } from "lucide-react";
 
 type SortField = "name" | "uploadedAt" | "fileSize" | "status" | "project";
@@ -79,6 +81,7 @@ export default function MyDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+  const [logsDocument, setLogsDocument] = useState<Document | null>(null);
 
   // Filter documents for current user
   const userDocuments = useMemo(() => {
@@ -447,6 +450,10 @@ export default function MyDocumentsPage() {
                                 <History className="h-4 w-4 mr-2" />
                                 Version History
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setLogsDocument(document)}>
+                                <ClipboardList className="h-4 w-4 mr-2" />
+                                Activity Logs
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => router.push(`/projects/${document.projectId}`)}>
                                 <Folder className="h-4 w-4 mr-2" />
@@ -493,6 +500,10 @@ export default function MyDocumentsPage() {
                           <DropdownMenuItem onClick={() => setVersionHistoryDocument(document)}>
                             <History className="h-4 w-4 mr-2" />
                             Version History
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setLogsDocument(document)}>
+                            <ClipboardList className="h-4 w-4 mr-2" />
+                            Activity Logs
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -573,6 +584,13 @@ export default function MyDocumentsPage() {
           isOpen={versionHistoryDocument !== null}
           onClose={() => setVersionHistoryDocument(null)}
           document={versionHistoryDocument}
+        />
+
+        {/* Document Logs Modal */}
+        <DocumentLogsModal
+          isOpen={logsDocument !== null}
+          onClose={() => setLogsDocument(null)}
+          document={logsDocument}
         />
       </div>
     </AppLayout>

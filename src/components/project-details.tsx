@@ -49,7 +49,8 @@ import {
   ExternalLink,
   Share,
   History,
-  UserCheck
+  UserCheck,
+  ClipboardList
 } from "lucide-react";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
@@ -59,6 +60,7 @@ import { AddDocumentModal } from "@/components/forms/add-document-modal";
 import { EditDocumentModal, DocumentUpdateData } from "@/components/forms/edit-document-modal";
 import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
+import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 
@@ -76,6 +78,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+  const [logsDocument, setLogsDocument] = useState<Document | null>(null);
 
   const handleDownloadDocument = (document: Document) => {
     // In a real app, this would download the actual file
@@ -527,6 +530,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 <History className="h-4 w-4 mr-2" />
                                 Version History
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setLogsDocument(document)}>
+                                <ClipboardList className="h-4 w-4 mr-2" />
+                                Activity Logs
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem>
                                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -667,6 +674,13 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           console.log("Viewing version:", version, "of document:", versionHistoryDocument?.name);
           // Here you would implement version viewing functionality
         }}
+      />
+
+      {/* Document Logs Modal */}
+      <DocumentLogsModal
+        isOpen={logsDocument !== null}
+        onClose={() => setLogsDocument(null)}
+        document={logsDocument}
       />
     </div>
   );
