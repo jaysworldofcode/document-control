@@ -38,8 +38,22 @@ import {
   X,
   Send,
   AlertCircle,
-  Info
+  Info,
+  Settings as SettingsIcon,
+  Cloud,
+  Key,
+  Globe,
+  Users,
+  Zap,
+  Loader2
 } from "lucide-react";
+import { 
+  MOCK_ORGANIZATION_SETTINGS, 
+  CURRENT_USER_PERMISSIONS,
+  CURRENT_USER_ROLE 
+} from "@/constants/organization.constants";
+import { AzureFormData } from "@/types/organization.types";
+import { testAzureConnection, validateAzureCredentials } from "@/utils/azure.utils";
 
 // Mock user data
 const mockUser = {
@@ -76,6 +90,10 @@ export default function SettingsPage() {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [isEditingAzure, setIsEditingAzure] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<string | null>(null);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -98,6 +116,15 @@ export default function SettingsPage() {
     type: "general",
     subject: "",
     message: "",
+  });
+
+  // Azure credentials form state
+  const [azureForm, setAzureForm] = useState<AzureFormData>({
+    tenantId: MOCK_ORGANIZATION_SETTINGS.azure.tenantId,
+    clientId: MOCK_ORGANIZATION_SETTINGS.azure.clientId,
+    clientSecret: MOCK_ORGANIZATION_SETTINGS.azure.clientSecret,
+    sharePointSiteUrl: MOCK_ORGANIZATION_SETTINGS.azure.sharePointSiteUrl,
+    defaultFolderPath: MOCK_ORGANIZATION_SETTINGS.azure.defaultFolderPath,
   });
 
   const handleProfileUpdate = () => {
@@ -146,6 +173,48 @@ export default function SettingsPage() {
     // window.location.href = "/login";
   };
 
+  const handleAzureUpdate = () => {
+    // In a real app, this would call an API to update Azure credentials
+    console.log("Azure credentials updated:", azureForm);
+    setIsEditingAzure(false);
+    // Show success message or handle API response
+  };
+
+  const handleTestAzureConnection = async () => {
+    // Validate credentials first
+    const validation = validateAzureCredentials({
+      tenantId: azureForm.tenantId,
+      clientId: azureForm.clientId,
+      clientSecret: azureForm.clientSecret
+    });
+
+    if (!validation.valid) {
+      setConnectionTestResult(`❌ ${validation.error}`);
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+
+    try {
+      const result = await testAzureConnection({
+        tenantId: azureForm.tenantId,
+        clientId: azureForm.clientId,
+        clientSecret: azureForm.clientSecret
+      });
+
+      if (result.success) {
+        setConnectionTestResult(`✅ ${result.message}`);
+      } else {
+        setConnectionTestResult(`❌ ${result.message}: ${result.error}`);
+      }
+    } catch (error) {
+      setConnectionTestResult(`❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   const feedbackTypeConfig = {
     bug: { label: "Bug Report", icon: AlertCircle, color: "text-red-600" },
     feature: { label: "Feature Request", icon: Info, color: "text-blue-600" },
@@ -166,7 +235,7 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Profile
@@ -174,6 +243,10 @@ export default function SettingsPage() {
             <TabsTrigger value="security" className="flex items-center gap-2">
               <Lock className="h-4 w-4" />
               Security
+            </TabsTrigger>
+            <TabsTrigger value="organization" className="flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              Organization
             </TabsTrigger>
             <TabsTrigger value="feedback" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -472,6 +545,307 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Organization Tab */}
+          <TabsContent value="organization" className="space-y-6">
+            {/* Permission Check */}
+            {!CURRENT_USER_PERMISSIONS.canViewSettings ? (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center">
+                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
+                    <p className="text-muted-foreground">
+                      You don't have permission to view organization settings. Only organization owners and admins can access this section.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Organization Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building className="h-5 w-5" />
+                      Organization Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center gap-6">
+                      <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Building className="h-10 w-10 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold">{MOCK_ORGANIZATION_SETTINGS.general.name}</h3>
+                        <p className="text-muted-foreground">{MOCK_ORGANIZATION_SETTINGS.general.domain}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline">Pro Plan</Badge>
+                          <Badge variant="secondary">12/50 Users</Badge>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">Your Role</p>
+                        <Badge variant="default" className="mt-1">
+                          {CURRENT_USER_ROLE.charAt(0).toUpperCase() + CURRENT_USER_ROLE.slice(1)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Azure SharePoint Integration */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Cloud className="h-5 w-5" />
+                      Azure SharePoint Integration
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      <span className="text-sm text-muted-foreground">
+                        {MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? 'Connected' : 'Disconnected'}
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {!CURRENT_USER_PERMISSIONS.canConfigureIntegrations ? (
+                      <div className="text-center p-6 bg-muted/50 rounded-lg">
+                        <Lock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Only organization owners and admins can configure Azure integration.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Azure Active Directory Configuration</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Configure Azure AD credentials for SharePoint token authentication
+                            </p>
+                          </div>
+                          <Button
+                            variant={isEditingAzure ? "outline" : "default"}
+                            onClick={() => setIsEditingAzure(!isEditingAzure)}
+                          >
+                            {isEditingAzure ? "Cancel" : "Edit Configuration"}
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <Label htmlFor="tenantId">Tenant ID</Label>
+                            <Input
+                              id="tenantId"
+                              value={azureForm.tenantId}
+                              onChange={(e) => setAzureForm(prev => ({ ...prev, tenantId: e.target.value }))}
+                              disabled={!isEditingAzure}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="clientId">Client (Application) ID</Label>
+                            <Input
+                              id="clientId"
+                              value={azureForm.clientId}
+                              onChange={(e) => setAzureForm(prev => ({ ...prev, clientId: e.target.value }))}
+                              disabled={!isEditingAzure}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="clientSecret">Client Secret</Label>
+                            <div className="relative">
+                              <Input
+                                id="clientSecret"
+                                type={showClientSecret ? "text" : "password"}
+                                value={azureForm.clientSecret}
+                                onChange={(e) => setAzureForm(prev => ({ ...prev, clientSecret: e.target.value }))}
+                                disabled={!isEditingAzure}
+                                placeholder="Enter client secret"
+                              />
+                              {isEditingAzure && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                                  onClick={() => setShowClientSecret(!showClientSecret)}
+                                >
+                                  {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="sharePointSiteUrl">SharePoint Site URL</Label>
+                            <Input
+                              id="sharePointSiteUrl"
+                              value={azureForm.sharePointSiteUrl}
+                              onChange={(e) => setAzureForm(prev => ({ ...prev, sharePointSiteUrl: e.target.value }))}
+                              disabled={!isEditingAzure}
+                              placeholder="https://yourcompany.sharepoint.com/sites/yoursite"
+                            />
+                          </div>
+
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="defaultFolderPath">Default Folder Path</Label>
+                            <Input
+                              id="defaultFolderPath"
+                              value={azureForm.defaultFolderPath}
+                              onChange={(e) => setAzureForm(prev => ({ ...prev, defaultFolderPath: e.target.value }))}
+                              disabled={!isEditingAzure}
+                              placeholder="/Documents/Projects"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Configuration Info */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
+                            <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                            <div className="text-sm text-blue-800">
+                              <p className="font-medium mb-1">Azure App Registration Required</p>
+                              <p>
+                                You need to register an application in Azure Active Directory with the following permissions:
+                              </p>
+                              <ul className="list-disc list-inside mt-2 space-y-1">
+                                <li>Sites.ReadWrite.All</li>
+                                <li>Files.ReadWrite.All</li>
+                                <li>User.Read</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        {isEditingAzure && (
+                          <div className="flex gap-2 pt-4">
+                            <Button onClick={handleAzureUpdate}>
+                              <Check className="h-4 w-4 mr-2" />
+                              Save Configuration
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={handleTestAzureConnection}
+                              disabled={isTestingConnection}
+                            >
+                              {isTestingConnection ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Testing...
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="h-4 w-4 mr-2" />
+                                  Test Connection
+                                </>
+                              )}
+                            </Button>
+                            <Button variant="outline" onClick={() => setIsEditingAzure(false)}>
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Connection Test Result */}
+                        {connectionTestResult && (
+                          <div className={`p-3 rounded-lg text-sm ${
+                            connectionTestResult.startsWith('✅') 
+                              ? 'bg-green-50 border border-green-200 text-green-800' 
+                              : 'bg-red-50 border border-red-200 text-red-800'
+                          }`}>
+                            {connectionTestResult}
+                          </div>
+                        )}
+
+                        {/* Integration Status */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium">Integration Status</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Cloud className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium">Azure Connection</span>
+                              </div>
+                              <Badge variant={MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? "default" : "secondary"}>
+                                {MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Globe className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium">SharePoint Sync</span>
+                              </div>
+                              <Badge variant={MOCK_ORGANIZATION_SETTINGS.integrations.isSharePointEnabled ? "default" : "secondary"}>
+                                {MOCK_ORGANIZATION_SETTINGS.integrations.isSharePointEnabled ? "Enabled" : "Disabled"}
+                              </Badge>
+                            </div>
+                          </div>
+                          {MOCK_ORGANIZATION_SETTINGS.integrations.lastSyncAt && (
+                            <p className="text-xs text-muted-foreground">
+                              Last sync: {new Date(MOCK_ORGANIZATION_SETTINGS.integrations.lastSyncAt).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Organization Members */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Organization Members
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          12 of 50 users in your organization
+                        </p>
+                        {CURRENT_USER_PERMISSIONS.canManageMembers && (
+                          <Button variant="outline" size="sm">
+                            <Users className="h-4 w-4 mr-2" />
+                            Manage Members
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {['Owner', 'Admin', 'Member'].map((role, index) => (
+                          <div key={role} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <User className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{role}s</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {index === 0 ? '1 user' : index === 1 ? '2 users' : '9 users'}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline">
+                              {role}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Feedback Tab */}

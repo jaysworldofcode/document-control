@@ -38,7 +38,8 @@ import {
   Users,
   Loader2,
   AlertCircle,
-  Crown
+  Crown,
+  Trash2
 } from "lucide-react";
 import { Project } from "@/types/project.types";
 
@@ -55,6 +56,8 @@ interface TeamMember {
   email: string;
   role: string;
   isManager?: boolean;
+  canApproveDocuments?: boolean;
+  isPrimaryManager?: boolean;
 }
 
 // Mock user data for team member selection
@@ -86,22 +89,24 @@ export function TeamMemberManagement({
     name,
     email: `${name.toLowerCase().replace(' ', '.')}@techcorp.com`,
     role: 'Team Member',
-    isManager: name === project.manager
+    isManager: project.managers.some(manager => manager.name === name)
   }));
 
-  // Manager as a team member
-  const manager: TeamMember = {
-    id: project.managerId || 'manager_1',
-    name: project.manager,
-    email: `${project.manager.toLowerCase().replace(' ', '.')}@techcorp.com`,
-    role: 'Project Manager',
-    isManager: true
-  };
+  // Managers as team members
+  const managers: TeamMember[] = project.managers.map(manager => ({
+    id: manager.id,
+    name: manager.name,
+    email: manager.email,
+    role: manager.role,
+    isManager: true,
+    canApproveDocuments: manager.canApproveDocuments,
+    isPrimaryManager: manager.isPrimaryManager
+  }));
 
-  // Available users excluding current team members
+  // Available users excluding current team members and managers
   const availableUsers = AVAILABLE_USERS.filter(user => 
     !currentMembers.some(member => member.id === user.id) &&
-    user.id !== manager.id
+    !managers.some(manager => manager.id === user.id)
   );
 
   const handleAddMember = async () => {
@@ -190,27 +195,27 @@ export function TeamMemberManagement({
         </div>
       )}
 
-      {/* Project Manager */}
+      {/* Project Managers */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Crown className="h-5 w-5 text-yellow-500" />
-                Project Manager
+                Project Managers
               </CardTitle>
               <CardDescription>
-                The person responsible for managing this project
+                People responsible for managing this project
               </CardDescription>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" disabled={loading || isSubmitting}>
-                  Change Manager
+                  Manage Managers
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Select New Manager</DropdownMenuLabel>
+                <DropdownMenuLabel>Add New Manager</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {currentMembers.filter(member => !member.isManager).map((member) => (
                   <DropdownMenuItem 
@@ -233,18 +238,41 @@ export function TeamMemberManagement({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <UserCheck className="h-6 w-6 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium">{manager.name}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Mail className="h-3 w-3" />
-                {manager.email}
-              </p>
-            </div>
-            <Badge variant="default">Manager</Badge>
+          <div className="space-y-3">
+            {managers.map((manager) => (
+              <div key={manager.id} className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <UserCheck className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{manager.name}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Mail className="h-3 w-3" />
+                    {manager.email}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {manager.isPrimaryManager && (
+                    <Badge variant="default">Primary Manager</Badge>
+                  )}
+                  {manager.canApproveDocuments && (
+                    <Badge variant="outline">Can Approve</Badge>
+                  )}
+                  {!manager.isPrimaryManager && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        // Handle removing secondary manager
+                        console.log('Remove manager:', manager.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

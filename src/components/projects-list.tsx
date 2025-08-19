@@ -59,7 +59,7 @@ export function ProjectsList() {
   const filteredProjects = mockProjects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.manager.toLowerCase().includes(searchTerm.toLowerCase());
+                         project.managers.some(manager => manager.name.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === "all" || project.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || project.priority === priorityFilter;
@@ -237,7 +237,10 @@ export function ProjectsList() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Users className="h-4 w-4" />
-                <span>{project.manager}</span>
+                <span>{project.managers.find(m => m.isPrimaryManager)?.name || project.managers[0]?.name}</span>
+                {project.managers.length > 1 && (
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded">+{project.managers.length - 1} more</span>
+                )}
                 <span>•</span>
                 <span>{project.team.length} members</span>
               </div>

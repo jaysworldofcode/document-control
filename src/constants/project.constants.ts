@@ -297,8 +297,28 @@ export const MOCK_PROJECTS: Project[] = [
     description: 'Comprehensive upgrade of the current document management platform with enhanced security and user experience.',
     status: 'active',
     priority: 'high',
-    manager: 'Sarah Wilson',
-    managerId: 'user_001',
+    managers: [
+      {
+        id: 'user_001',
+        name: 'Sarah Wilson',
+        email: 'sarah.wilson@techcorp.com',
+        role: 'Project Manager',
+        canApproveDocuments: true,
+        isPrimaryManager: true,
+        addedAt: '2024-01-10T09:00:00Z',
+        addedBy: 'admin@company.com'
+      },
+      {
+        id: 'user_021',
+        name: 'Robert Chen',
+        email: 'robert.chen@techcorp.com',
+        role: 'Technical Lead',
+        canApproveDocuments: true,
+        isPrimaryManager: false,
+        addedAt: '2024-01-15T14:00:00Z',
+        addedBy: 'sarah.wilson@techcorp.com'
+      }
+    ],
     team: ['John Doe', 'Jane Smith', 'Mike Johnson'],
     teamIds: ['user_002', 'user_003', 'user_004'],
     startDate: '2024-01-15',
@@ -323,8 +343,18 @@ export const MOCK_PROJECTS: Project[] = [
     description: 'Development of a specialized portal for managing legal contracts, agreements, and compliance documentation.',
     status: 'planning',
     priority: 'medium',
-    manager: 'Emily Rodriguez',
-    managerId: 'user_005',
+    managers: [
+      {
+        id: 'user_005',
+        name: 'Emily Rodriguez',
+        email: 'emily.rodriguez@company.com',
+        role: 'Legal Manager',
+        canApproveDocuments: true,
+        isPrimaryManager: true,
+        addedAt: '2024-02-20T10:00:00Z',
+        addedBy: 'admin@company.com'
+      }
+    ],
     team: ['Alice Brown', 'Bob Wilson', 'Carol Davis'],
     teamIds: ['user_006', 'user_007', 'user_008'],
     startDate: '2024-03-01',
@@ -349,8 +379,28 @@ export const MOCK_PROJECTS: Project[] = [
     description: 'Automated invoice processing and approval workflow system with integration to accounting software.',
     status: 'active',
     priority: 'high',
-    manager: 'David Chen',
-    managerId: 'user_009',
+    managers: [
+      {
+        id: 'user_009',
+        name: 'David Chen',
+        email: 'david.chen@company.com',
+        role: 'Finance Manager',
+        canApproveDocuments: true,
+        isPrimaryManager: true,
+        addedAt: '2024-01-25T08:30:00Z',
+        addedBy: 'admin@company.com'
+      },
+      {
+        id: 'user_022',
+        name: 'Lisa Martinez',
+        email: 'lisa.martinez@company.com',
+        role: 'Senior Finance Analyst',
+        canApproveDocuments: true,
+        isPrimaryManager: false,
+        addedAt: '2024-02-10T11:00:00Z',
+        addedBy: 'david.chen@company.com'
+      }
+    ],
     team: ['Tom Anderson', 'Lisa Garcia', 'Mark Thompson'],
     teamIds: ['user_010', 'user_011', 'user_012'],
     startDate: '2024-02-01',
@@ -375,8 +425,18 @@ export const MOCK_PROJECTS: Project[] = [
     description: 'Digitization of paper-based HR documents and implementation of digital workflow processes.',
     status: 'completed',
     priority: 'medium',
-    manager: 'Anna Davis',
-    managerId: 'user_013',
+    managers: [
+      {
+        id: 'user_013',
+        name: 'Anna Davis',
+        email: 'anna.davis@company.com',
+        role: 'HR Manager',
+        canApproveDocuments: true,
+        isPrimaryManager: true,
+        addedAt: '2023-09-15T09:00:00Z',
+        addedBy: 'admin@company.com'
+      }
+    ],
     team: ['Ryan Lee', 'Sophie Chen'],
     teamIds: ['user_014', 'user_015'],
     startDate: '2023-10-01',
@@ -432,8 +492,28 @@ export const MOCK_PROJECTS: Project[] = [
     description: 'Central repository for marketing materials, campaign assets, and brand guidelines with approval workflows.',
     status: 'on-hold',
     priority: 'low',
-    manager: 'Chris Taylor',
-    managerId: 'user_016',
+    managers: [
+      {
+        id: 'user_016',
+        name: 'Chris Taylor',
+        email: 'chris.taylor@company.com',
+        role: 'Marketing Manager',
+        canApproveDocuments: true,
+        isPrimaryManager: true,
+        addedAt: '2024-03-20T14:00:00Z',
+        addedBy: 'admin@company.com'
+      },
+      {
+        id: 'user_023',
+        name: 'Jennifer Park',
+        email: 'jennifer.park@company.com',
+        role: 'Creative Director',
+        canApproveDocuments: true,
+        isPrimaryManager: false,
+        addedAt: '2024-04-05T10:30:00Z',
+        addedBy: 'chris.taylor@company.com'
+      }
+    ],
     team: ['Sam Wilson', 'Amy Johnson'],
     teamIds: ['user_017', 'user_018'],
     startDate: '2024-04-01',

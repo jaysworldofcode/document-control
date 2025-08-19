@@ -42,8 +42,7 @@ export interface Project {
   description: string;
   status: ProjectStatus;
   priority: ProjectPriority;
-  manager: string;
-  managerId?: string;
+  managers: ProjectManager[]; // Changed from single manager to multiple managers
   team: string[];
   teamIds?: string[];
   startDate: string;
@@ -69,14 +68,26 @@ export interface Project {
   isArchived: boolean;
 }
 
+// Project Manager Interface
+export interface ProjectManager {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  canApproveDocuments: boolean;
+  isPrimaryManager: boolean; // One manager should be primary
+  addedAt: string;
+  addedBy: string;
+}
+
 // Form Data Types
 export interface ProjectFormData {
   name: string;
   description: string;
   status: ProjectStatus;
   priority: ProjectPriority;
-  manager: string;
-  managerId?: string;
+  managers: ProjectManager[]; // Changed to support multiple managers
   team: string[];
   startDate: string;
   endDate: string;
@@ -135,7 +146,7 @@ export interface CreateProjectRequest {
   description: string;
   status: ProjectStatus;
   priority: ProjectPriority;
-  managerId: string;
+  managerIds: string[]; // Changed to support multiple manager IDs
   teamIds: string[];
   startDate: string;
   endDate: string;

@@ -42,7 +42,8 @@ import {
   Settings,
   FolderOpen,
   FileSpreadsheet,
-  Info
+  Info,
+  UserPlus
 } from 'lucide-react';
 
 interface ProjectFormProps {
@@ -66,7 +67,7 @@ export function ProjectForm({
     description: '',
     status: 'planning',
     priority: 'medium',
-    manager: '',
+    managers: [],
     team: [],
     startDate: '',
     endDate: '',
@@ -101,7 +102,7 @@ export function ProjectForm({
         description: project.description,
         status: project.status,
         priority: project.priority,
-        manager: project.manager,
+        managers: project.managers,
         team: project.team,
         startDate: project.startDate,
         endDate: project.endDate,
@@ -118,7 +119,7 @@ export function ProjectForm({
         description: '',
         status: 'planning',
         priority: 'medium',
-        manager: '',
+        managers: [],
         team: [],
         startDate: '',
         endDate: '',
@@ -270,7 +271,7 @@ export function ProjectForm({
     const validationErrors: string[] = [];
     if (!formData.name) validationErrors.push('Project name is required');
     if (!formData.description) validationErrors.push('Project description is required');
-    if (!formData.manager) validationErrors.push('Project manager is required');
+    if (!formData.managers || formData.managers.length === 0) validationErrors.push('At least one project manager is required');
     if (!formData.startDate) validationErrors.push('Start date is required');
     if (!formData.sharePointFolderPath) validationErrors.push('SharePoint folder path is required');
 
@@ -398,13 +399,58 @@ export function ProjectForm({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="manager">Project Manager *</Label>
-                  <Input
-                    id="manager"
-                    value={formData.manager}
-                    onChange={(e) => handleInputChange('manager', e.target.value)}
-                    placeholder="Manager name"
-                  />
+                  <Label>Project Managers *</Label>
+                  <div className="space-y-2">
+                    {formData.managers.map((manager, index) => (
+                      <div key={manager.id} className="flex items-center gap-2 p-2 border rounded">
+                        <div className="flex-1">
+                          <div className="font-medium">{manager.name}</div>
+                          <div className="text-sm text-muted-foreground">{manager.email}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {manager.isPrimaryManager && (
+                            <Badge variant="secondary" className="text-xs">Primary</Badge>
+                          )}
+                          {manager.canApproveDocuments && (
+                            <Badge variant="outline" className="text-xs">Can Approve</Badge>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newManagers = formData.managers.filter((_, i) => i !== index);
+                            handleInputChange('managers', newManagers);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // For now, add a placeholder manager - in real app this would open a user selector
+                        const newManager = {
+                          id: `manager_${Date.now()}`,
+                          name: 'New Manager',
+                          email: 'manager@company.com',
+                          role: 'Project Manager',
+                          canApproveDocuments: true,
+                          isPrimaryManager: formData.managers.length === 0,
+                          addedAt: new Date().toISOString(),
+                          addedBy: 'current_user'
+                        };
+                        handleInputChange('managers', [...formData.managers, newManager]);
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add Manager
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

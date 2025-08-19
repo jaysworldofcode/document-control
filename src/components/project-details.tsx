@@ -292,8 +292,25 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Manager</label>
-                    <p className="mt-1">{project.manager}</p>
+                    <label className="text-sm font-medium text-muted-foreground">Managers</label>
+                    <div className="mt-1 space-y-2">
+                      {project.managers.map((manager) => (
+                        <div key={manager.id} className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                            <UserCheck className="h-3 w-3" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{manager.name}</span>
+                            {manager.isPrimaryManager && (
+                              <Badge variant="secondary" className="text-xs">Primary</Badge>
+                            )}
+                            {manager.canApproveDocuments && (
+                              <Badge variant="outline" className="text-xs">Can Approve</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Client</label>
@@ -318,15 +335,27 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserCheck className="h-4 w-4" />
+                  {/* Managers */}
+                  {project.managers.map((manager) => (
+                    <div key={manager.id} className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <UserCheck className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{manager.name}</p>
+                          {manager.isPrimaryManager && (
+                            <Badge variant="secondary" className="text-xs">Primary</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">Project Manager</p>
+                      </div>
+                      {manager.canApproveDocuments && (
+                        <Badge variant="outline" className="text-xs">Can Approve</Badge>
+                      )}
                     </div>
-                    <div>
-                      <p className="font-medium">{project.manager}</p>
-                      <p className="text-sm text-muted-foreground">Project Manager</p>
-                    </div>
-                  </div>
+                  ))}
+                  {/* Team Members */}
                   {project.team.map((member, index) => (
                     <div key={index} className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
