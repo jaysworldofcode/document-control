@@ -56,8 +56,6 @@ const mockUser = {
   permissions: ["read", "write", "approve"],
   preferences: {
     emailNotifications: true,
-    pushNotifications: false,
-    weeklyReports: true,
   }
 };
 
@@ -470,24 +468,6 @@ export default function SettingsPage() {
                   </div>
                   <Button variant="outline" size="sm">
                     {user.preferences.emailNotifications ? "Enabled" : "Disabled"}
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Push Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive push notifications in your browser</p>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    {user.preferences.pushNotifications ? "Enabled" : "Disabled"}
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Weekly Reports</Label>
-                    <p className="text-sm text-muted-foreground">Receive weekly summary reports</p>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    {user.preferences.weeklyReports ? "Enabled" : "Disabled"}
                   </Button>
                 </div>
               </CardContent>
