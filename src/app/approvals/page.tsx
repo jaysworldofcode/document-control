@@ -18,6 +18,7 @@ import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
+import { RejectDocumentModal } from "@/components/forms/reject-document-modal";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { Document } from "@/types/document.types";
@@ -63,6 +64,7 @@ export default function ApprovalsPage() {
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
+  const [rejectingDocument, setRejectingDocument] = useState<Document | null>(null);
 
   // Filter documents that need review
   const reviewDocuments = useMemo(() => {
@@ -112,8 +114,32 @@ export default function ApprovalsPage() {
   };
 
   const handleRejectDocument = (document: Document) => {
-    console.log("Rejecting document:", document.name);
-    // In a real app, this would call an API to reject the document
+    setRejectingDocument(document);
+  };
+
+  const handleSubmitRejection = async (rejectionData: { reason: string; attachments?: File[] }) => {
+    if (!rejectingDocument) return;
+    
+    try {
+      // In a real app, this would call an API to reject the document with reason and attachments
+      console.log("Rejecting document:", {
+        document: rejectingDocument,
+        reason: rejectionData.reason,
+        attachments: rejectionData.attachments
+      });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update document status to "rejected"
+      // In real app, this would update the actual document record
+      console.log("Document rejected successfully with feedback");
+      
+      setRejectingDocument(null);
+    } catch (error) {
+      console.error("Failed to reject document:", error);
+      throw error;
+    }
   };
 
   const handleSendForApproval = async (approvers: any[], comments?: string) => {
@@ -410,6 +436,14 @@ export default function ApprovalsPage() {
           onClose={() => setSendingForApprovalDocument(null)}
           document={sendingForApprovalDocument}
           onSubmit={handleSendForApproval}
+        />
+
+        {/* Reject Document Modal */}
+        <RejectDocumentModal
+          isOpen={rejectingDocument !== null}
+          onClose={() => setRejectingDocument(null)}
+          document={rejectingDocument}
+          onSubmit={handleSubmitRejection}
         />
       </div>
     </AppLayout>
