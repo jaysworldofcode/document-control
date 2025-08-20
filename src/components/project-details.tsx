@@ -65,6 +65,8 @@ import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
+import { ProjectChatBox } from "@/components/project-chat-box";
+import { ChatToggleButton } from "@/components/chat-toggle-button";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -82,6 +84,15 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
+  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(3); // Mock unread count
+
+  // Mock current user - in real app this would come from auth context
+  const currentUser = {
+    id: "user_123",
+    name: "John Doe",
+    email: "john.doe@company.com"
+  };
 
   const handleDownloadDocument = (document: Document) => {
     // In a real app, this would download the actual file
@@ -759,6 +770,29 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         onClose={() => setSendingForApprovalDocument(null)}
         document={sendingForApprovalDocument}
         onSubmit={handleSendForApproval}
+      />
+
+      {/* Project Chat */}
+      <ProjectChatBox
+        projectId={projectId}
+        projectName={project?.name || "Project Chat"}
+        currentUser={currentUser}
+        isVisible={isChatVisible}
+        onToggleVisibility={() => {
+          setIsChatVisible(false);
+          setChatUnreadCount(0); // Mark as read when closing
+        }}
+      />
+
+      {/* Chat Toggle Button */}
+      <ChatToggleButton
+        isVisible={isChatVisible}
+        unreadCount={chatUnreadCount}
+        onToggle={() => {
+          setIsChatVisible(true);
+          setChatUnreadCount(0); // Mark as read when opening
+        }}
+        projectName={project?.name || "Project"}
       />
     </div>
   );
