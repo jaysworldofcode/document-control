@@ -228,7 +228,7 @@ export function ProjectsList() {
                   <span className="text-xs bg-muted px-2 py-0.5 rounded">+{project.managers.length - 1} more</span>
                 )}
                 <span>•</span>
-                <span>{project.team.length} members</span>
+                <span>{project.team?.length || 0} member{(project.team?.length || 0) !== 1 ? 's' : ''}</span>
               </div>
               
               <div className="flex items-center gap-2 text-muted-foreground">

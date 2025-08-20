@@ -202,7 +202,7 @@ export function ProjectForm({
         status: project.status,
         priority: project.priority,
         managers: project.managers,
-        team: project.team,
+        team: project.team || [],
         startDate: project.startDate,
         endDate: project.endDate,
         budget: project.budget,

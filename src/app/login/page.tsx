@@ -1,70 +1,152 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   Eye, 
   EyeOff, 
   Mail, 
   Lock,
   FileText,
-  Shield
-} from "lucide-react";
+  Shield,
+  AlertCircle,
+  Loader2
+} from 'lucide-react'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+    email: '',
+    password: '',
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const supabase = createClient()
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {}
+
+    if (!formData.email) {
+      newErrors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }))
+    }
+    
+    // Clear general message
+    if (message) {
+      setMessage(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
 
-    // Simulate login API call
+    setLoading(true)
+    setMessage(null)
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, you would validate credentials with your backend
-      if (formData.email && formData.password) {
-        // Store auth token/session if remember me is checked
+      // Sign in with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (data?.session) {
+        setMessage({
+          type: 'success',
+          text: 'Login successful! Redirecting...'
+        })
+        
+        // Store remember me preference
         if (rememberMe) {
-          localStorage.setItem('rememberLogin', 'true');
+          localStorage.setItem('rememberMe', 'true')
         }
         
-        // Redirect to dashboard
-        router.push('/');
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
       }
-    } catch (error) {
-      console.error('Login failed:', error);
+    } catch (error: any) {
+      console.error('Login error:', error)
+      setMessage({
+        type: 'error',
+        text: error.message || 'Invalid email or password. Please try again.'
+      })
     } finally {
-      setIsLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleSignUp = () => {
-    router.push('/register');
-  };
+  const handleForgotPassword = async () => {
+    if (!formData.email) {
+      setMessage({
+        type: 'error',
+        text: 'Please enter your email address first.'
+      })
+      return
+    }
 
-  const handleForgotPassword = () => {
-    router.push('/forgot-password');
-  };
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      setMessage({
+        type: 'success',
+        text: 'Password reset email sent! Check your inbox.'
+      })
+    } catch (error: any) {
+      console.error('Password reset error:', error)
+      setMessage({
+        type: 'error',
+        text: error.message || 'Failed to send password reset email.'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex items-center justify-center p-4">
@@ -91,6 +173,15 @@ export default function LoginPage() {
           </CardHeader>
 
           <CardContent>
+            {message && (
+              <Alert className={`mb-4 ${message.type === 'error' ? 'border-red-500 bg-red-50' : 'border-green-500 bg-green-50'}`}>
+                <AlertCircle className={`h-4 w-4 ${message.type === 'error' ? 'text-red-500' : 'text-green-500'}`} />
+                <AlertDescription className={message.type === 'error' ? 'text-red-700' : 'text-green-700'}>
+                  {message.text}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email Field */}
               <div className="space-y-2">
@@ -106,11 +197,14 @@ export default function LoginPage() {
                     autoComplete="email"
                     required
                     value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    onChange={handleInputChange}
                     placeholder="Enter your email"
-                    className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                    className={`pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 ${errors.email ? 'border-red-500' : ''}`}
                   />
                 </div>
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email}</p>
+                )}
               </div>
 
               {/* Password Field */}
@@ -127,9 +221,9 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     required
                     value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    onChange={handleInputChange}
                     placeholder="Enter your password"
-                    className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                    className={`pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 ${errors.password ? 'border-red-500' : ''}`}
                   />
                   <Button
                     type="button"
@@ -141,6 +235,9 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password}</p>
+                )}
               </div>
 
               {/* Remember Me and Forgot Password */}
@@ -164,6 +261,7 @@ export default function LoginPage() {
                   variant="link"
                   onClick={handleForgotPassword}
                   className="text-sm text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
+                  disabled={loading}
                 >
                   Forgot password?
                 </Button>
@@ -173,11 +271,11 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
-                disabled={isLoading || !formData.email || !formData.password}
+                disabled={loading || !formData.email || !formData.password}
               >
-                {isLoading ? (
+                {loading ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Signing in...
                   </div>
                 ) : (
@@ -190,14 +288,9 @@ export default function LoginPage() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={handleSignUp}
-                  className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
-                >
+                <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign up
-                </Button>
+                </Link>
               </p>
             </div>
           </CardContent>
@@ -211,5 +304,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -39,12 +39,9 @@ import {
   Trash2,
   MoreHorizontal,
   FileText,
-  Calendar,
   Users,
-  FolderOpen,
   CheckCircle,
   Clock,
-  AlertCircle,
   Settings,
   ExternalLink,
   Share,
@@ -55,7 +52,6 @@ import {
 } from "lucide-react";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
-import { Project } from "@/types/project.types";
 import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
 import { AddDocumentModal } from "@/components/forms/add-document-modal";
 import { EditDocumentModal, DocumentUpdateData } from "@/components/forms/edit-document-modal";
@@ -78,7 +74,6 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all");
   const [activeTab, setActiveTab] = useState("overview");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
@@ -111,7 +106,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     window.open(sharePointUrl, '_blank');
   };
 
-  const handleSendForApproval = async (approvers: any[], comments?: string) => {
+  const handleSendForApproval = async (approvers: { id: string; name: string; email: string }[], comments?: string) => {
     if (!sendingForApprovalDocument) return;
     
     try {
@@ -554,7 +549,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 <TableBody>
                   {filteredDocuments.map((document) => {
                     const statusConfig = DOCUMENT_STATUS_CONFIG[document.status];
-                    const fileConfig = FILE_TYPE_CONFIG[document.fileType as keyof typeof FILE_TYPE_CONFIG] || FILE_TYPE_CONFIG.default;
+                    const fileConfig = FILE_TYPE_CONFIG[document.fileType as keyof typeof FILE_TYPE_CONFIG] || { 
+                      icon: "FileText", 
+                      color: "text-gray-600" 
+                    };
                     
                     return (
                       <TableRow key={document.id}>
