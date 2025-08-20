@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Document } from "@/types/document.types";
+import { DocumentComment, NewCommentData, CommentReaction } from "@/types/comment.types";
+import { DocumentComments } from "@/components/document-comments";
+import { DocumentRejectionDisplay } from "@/components/document-rejection-display";
 import { 
   Calendar,
   User,
@@ -52,6 +55,71 @@ export function DocumentViewModal({
   onClose,
   onEdit 
 }: DocumentViewModalProps) {
+  const [comments, setComments] = useState<DocumentComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+
+  // Mock current user data - in real app this would come from auth context
+  const currentUser = {
+    id: "user_123",
+    name: "John Doe",
+    email: "john.doe@company.com"
+  };
+
+  // Mock comments data - in real app this would be fetched from API
+  React.useEffect(() => {
+    if (isOpen && document) {
+      // Simulate loading comments
+      setIsLoadingComments(true);
+      setTimeout(() => {
+        const mockComments: DocumentComment[] = [
+          {
+            id: "comment_1",
+            documentId: document.id,
+            userId: "user_456",
+            userName: "Jane Smith",
+            userEmail: "jane.smith@company.com",
+            content: "This document looks good overall, but I think we need to add more details in section 3.2 about the security protocols.",
+            createdAt: "2024-08-15T10:30:00Z",
+            isEdited: false,
+            reactions: [
+              { id: "reaction_1", userId: "user_123", userName: "John Doe", type: "like", createdAt: "2024-08-15T11:00:00Z" },
+              { id: "reaction_2", userId: "user_789", userName: "Bob Johnson", type: "helpful", createdAt: "2024-08-15T11:15:00Z" }
+            ]
+          },
+          {
+            id: "comment_2",
+            documentId: document.id,
+            userId: "user_123",
+            userName: "John Doe",
+            userEmail: "john.doe@company.com",
+            content: "@Jane Smith - Good point about section 3.2. I'll update that section to include the security protocol details we discussed in the last meeting.",
+            createdAt: "2024-08-15T14:20:00Z",
+            isEdited: false,
+            replyTo: "comment_1",
+            reactions: [
+              { id: "reaction_3", userId: "user_456", userName: "Jane Smith", type: "like", createdAt: "2024-08-15T14:30:00Z" }
+            ]
+          },
+          {
+            id: "comment_3",
+            documentId: document.id,
+            userId: "user_789",
+            userName: "Bob Johnson",
+            userEmail: "bob.johnson@company.com",
+            content: "I've reviewed the technical specifications and they align with our current infrastructure. Great work on this!",
+            createdAt: "2024-08-16T09:15:00Z",
+            isEdited: false,
+            reactions: [
+              { id: "reaction_4", userId: "user_123", userName: "John Doe", type: "love", createdAt: "2024-08-16T09:30:00Z" }
+            ]
+          }
+        ];
+        setComments(mockComments);
+        setIsLoadingComments(false);
+      }, 500);
+    }
+  }, [isOpen, document]);
+
   if (!document) return null;
 
   // Get status configuration with fallback
@@ -64,6 +132,70 @@ export function DocumentViewModal({
   };
 
   const currentStatusConfig = getStatusConfig(document.status);
+
+  // Comment handlers
+  const handleAddComment = async (data: NewCommentData): Promise<void> => {
+    // In real app, this would call an API
+    const newComment: DocumentComment = {
+      id: `comment_${Date.now()}`,
+      documentId: document.id,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      content: data.content,
+      createdAt: new Date().toISOString(),
+      isEdited: false,
+      replyTo: data.replyTo,
+      reactions: []
+    };
+    
+    setComments(prev => [...prev, newComment]);
+  };
+
+  const handleUpdateComment = async (commentId: string, content: string): Promise<void> => {
+    // In real app, this would call an API
+    setComments(prev => prev.map(comment => 
+      comment.id === commentId 
+        ? { ...comment, content, isEdited: true, updatedAt: new Date().toISOString() }
+        : comment
+    ));
+  };
+
+  const handleDeleteComment = async (commentId: string): Promise<void> => {
+    // In real app, this would call an API
+    setComments(prev => prev.filter(comment => comment.id !== commentId));
+  };
+
+  const handleReactToComment = async (commentId: string, reactionType: CommentReaction['type']): Promise<void> => {
+    // In real app, this would call an API
+    setComments(prev => prev.map(comment => {
+      if (comment.id !== commentId) return comment;
+      
+      const reactions = comment.reactions || [];
+      const existingReaction = reactions.find(r => r.userId === currentUser.id && r.type === reactionType);
+      
+      if (existingReaction) {
+        // Remove reaction if it already exists
+        return {
+          ...comment,
+          reactions: reactions.filter(r => r.id !== existingReaction.id)
+        };
+      } else {
+        // Add new reaction
+        const newReaction: CommentReaction = {
+          id: `reaction_${Date.now()}`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+          type: reactionType,
+          createdAt: new Date().toISOString()
+        };
+        return {
+          ...comment,
+          reactions: [...reactions, newReaction]
+        };
+      }
+    }));
+  };
 
   const handleDownload = () => {
     // In a real app, this would download the actual file
@@ -328,6 +460,25 @@ export function DocumentViewModal({
                 </CardContent>
               </Card>
             )}
+
+            {/* Rejection Information */}
+            {document.status === 'rejected' && (
+              <DocumentRejectionDisplay document={document} />
+            )}
+
+            <Separator />
+
+            {/* Comments Section */}
+            <DocumentComments
+              documentId={document.id}
+              comments={comments}
+              onAddComment={handleAddComment}
+              onUpdateComment={handleUpdateComment}
+              onDeleteComment={handleDeleteComment}
+              onReactToComment={handleReactToComment}
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name}
+            />
           </div>
         </div>
       </DialogContent>

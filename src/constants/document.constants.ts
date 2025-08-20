@@ -156,7 +156,7 @@ export const MOCK_DOCUMENTS: Document[] = [
     fileType: "sql",
     fileSize: 125000, // 125 KB
     version: "1.5",
-    status: "checked_out",
+    status: "rejected",
     uploadedBy: "Tom Anderson",
     uploadedAt: "2024-08-17T11:20:00Z",
     lastModified: "2024-08-17T11:20:00Z",
@@ -170,10 +170,55 @@ export const MOCK_DOCUMENTS: Document[] = [
       "database-type": "PostgreSQL",
       "environment": "Development"
     },
-    checkoutInfo: {
-      checkedOutBy: "Tom Anderson",
-      checkedOutAt: "2024-08-17T11:20:00Z",
-      reason: "Adding new indexes for performance optimization"
+    approvalWorkflow: {
+      id: "workflow_003",
+      currentStep: 2,
+      totalSteps: 3,
+      overallStatus: 'rejected',
+      steps: [
+        {
+          id: "step_003_1",
+          approverId: "user_456",
+          approverName: "Sarah Wilson",
+          approverEmail: "sarah.wilson@techcorp.com",
+          department: "Database Administration",
+          order: 1,
+          status: 'approved',
+          approvedAt: "2024-08-17T14:30:00Z",
+          comments: "Schema structure looks good. Indexing strategy is well thought out.",
+          viewedDocument: true,
+          downloadedDocument: true,
+          openedInSharePoint: false
+        },
+        {
+          id: "step_003_2",
+          approverId: "user_789",
+          approverName: "Michael Roberts",
+          approverEmail: "michael.roberts@techcorp.com",
+          department: "Security Team",
+          order: 2,
+          status: 'rejected',
+          rejectedAt: "2024-08-18T09:15:00Z",
+          comments: "Security concerns identified: Missing encryption for sensitive data fields, no audit trail for data modifications, and insufficient access controls. Please address these issues and implement field-level encryption for PII data.",
+          viewedDocument: true,
+          downloadedDocument: true,
+          openedInSharePoint: true
+        },
+        {
+          id: "step_003_3",
+          approverId: "user_101",
+          approverName: "Lisa Chen",
+          approverEmail: "lisa.chen@techcorp.com",
+          department: "IT Architecture",
+          order: 3,
+          status: 'pending',
+          viewedDocument: false,
+          downloadedDocument: false,
+          openedInSharePoint: false
+        }
+      ],
+      requestedBy: "Tom Anderson",
+      requestedAt: "2024-08-17T12:00:00Z"
     },
     revisionHistory: [
       {
