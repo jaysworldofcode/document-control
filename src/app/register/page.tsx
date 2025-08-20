@@ -122,7 +122,7 @@ export default function RegisterPage() {
           text: 'Account created successfully! Redirecting...'
         })
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push('/')
         }, 2000)
       }
     } catch (error: any) {
