@@ -379,6 +379,180 @@ export interface Database {
           created_at?: string
         }
       }
+      permissions: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          resource: string
+          action: 'create' | 'read' | 'update' | 'delete' | 'manage'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          resource: string
+          action: 'create' | 'read' | 'update' | 'delete' | 'manage'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          resource?: string
+          action?: 'create' | 'read' | 'update' | 'delete' | 'manage'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      departments: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          head_of_department: string | null
+          parent_department_id: string | null
+          location: string | null
+          budget: number | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          created_by: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          head_of_department?: string | null
+          parent_department_id?: string | null
+          location?: string | null
+          budget?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          head_of_department?: string | null
+          parent_department_id?: string | null
+          location?: string | null
+          budget?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string
+        }
+      }
+      roles: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          level: 'admin' | 'manager' | 'user'
+          department_id: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          created_by: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          level: 'admin' | 'manager' | 'user'
+          department_id?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          level?: 'admin' | 'manager' | 'user'
+          department_id?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string
+        }
+      }
+      role_permissions: {
+        Row: {
+          id: string
+          role_id: string
+          permission_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          role_id: string
+          permission_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          role_id?: string
+          permission_id?: string
+          created_at?: string
+        }
+      }
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role_id: string
+          assigned_by: string
+          assigned_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role_id: string
+          assigned_by: string
+          assigned_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role_id?: string
+          assigned_by?: string
+          assigned_at?: string
+        }
+      }
+      user_departments: {
+        Row: {
+          id: string
+          user_id: string
+          department_id: string
+          is_primary: boolean
+          assigned_by: string
+          assigned_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          department_id: string
+          is_primary?: boolean
+          assigned_by: string
+          assigned_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          department_id?: string
+          is_primary?: boolean
+          assigned_by?: string
+          assigned_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

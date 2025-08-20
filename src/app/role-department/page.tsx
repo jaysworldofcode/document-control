@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RoleForm } from "@/components/forms/role-form";
 import { DepartmentForm } from "@/components/forms/department-form";
-import { useRoles, useDepartments, useRoleDepartmentFilters } from "@/hooks/useRoleDepartment";
+import { useRoles, useDepartments, usePermissions, useRoleDepartmentFilters } from "@/hooks/useRoleDepartment";
 import { Role, Department, RoleFormData, DepartmentFormData, CreateDepartmentRequest } from "@/types/role-department.types";
 import { 
   Plus, 
@@ -78,6 +78,11 @@ export default function RoleDepartmentPage() {
     deleteDepartment,
     toggleDepartmentStatus
   } = useDepartments();
+
+  const {
+    permissions,
+    loading: permissionsLoading
+  } = usePermissions();
 
   const {
     roleFilters,
@@ -198,6 +203,22 @@ export default function RoleDepartmentPage() {
       minimumFractionDigits: 0
     }).format(amount);
   };
+
+  // Show loading state while initial data is loading
+  if (rolesLoading || departmentsLoading || permissionsLoading) {
+    return (
+      <AppLayout>
+        <div className="container mx-auto py-6">
+          <div className="flex items-center justify-center h-96">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span>Loading role and department data...</span>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -518,6 +539,7 @@ export default function RoleDepartmentPage() {
         onClose={() => setIsRoleFormOpen(false)}
         onSubmit={handleRoleSubmit}
         departments={departments}
+        permissions={permissions}
         role={selectedRole}
         loading={rolesLoading}
       />

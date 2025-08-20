@@ -21,8 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Role, RoleFormData, ValidationError, Department } from '@/types/role-department.types';
-import { PERMISSIONS } from '@/constants/role-department.constants';
+import { Role, RoleFormData, ValidationError, Department, Permission } from '@/types/role-department.types';
 import { ValidationUtils } from '@/utils/validation.utils';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -31,6 +30,7 @@ interface RoleFormProps {
   onClose: () => void;
   onSubmit: (data: RoleFormData) => Promise<void>;
   departments: Department[];
+  permissions: Permission[];
   role?: Role;
   loading?: boolean;
 }
@@ -40,6 +40,7 @@ export function RoleForm({
   onClose, 
   onSubmit, 
   departments, 
+  permissions,
   role, 
   loading = false 
 }: RoleFormProps) {
@@ -227,7 +228,7 @@ export function RoleForm({
               <p className="text-xs text-destructive">{getFieldError('permissions')}</p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto border rounded-md p-3">
-              {PERMISSIONS.map((permission) => (
+              {permissions.map((permission) => (
                 <div key={permission.id} className="flex items-start space-x-3">
                   <Checkbox
                     id={`permission-${permission.id}`}

@@ -1,7 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { 
   Role, 
   Department, 
+  Permission,
   RoleDepartmentFilters, 
   SortConfig,
   CreateRoleRequest,
@@ -9,35 +10,70 @@ import {
   CreateDepartmentRequest,
   UpdateDepartmentRequest
 } from '@/types/role-department.types';
-import { MOCK_ROLES, MOCK_DEPARTMENTS } from '@/constants/role-department.constants';
+import * as roleService from '@/lib/role-department';
 
-export function useRoles() {
-  const [roles, setRoles] = useState<Role[]>(MOCK_ROLES);
+export function usePermissions() {
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchPermissions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const data = await roleService.getPermissions();
+      setPermissions(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch permissions';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPermissions();
+  }, [fetchPermissions]);
+
+  return {
+    permissions,
+    loading,
+    error,
+    refetch: fetchPermissions
+  };
+}
+
+export function useRoles() {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRoles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const data = await roleService.getRoles();
+      setRoles(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch roles';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
 
   const createRole = useCallback(async (data: CreateRoleRequest): Promise<Role> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newRole: Role = {
-        id: `role_${Date.now()}`,
-        name: data.name,
-        description: data.description,
-        permissions: data.permissions,
-        level: data.level,
-        departmentId: data.departmentId,
-        isActive: true,
-        assignedUsers: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'current-user@company.com'
-      };
-      
+      const newRole = await roleService.createRole(data);
       setRoles(prev => [...prev, newRole]);
       return newRole;
     } catch (err) {
@@ -54,24 +90,7 @@ export function useRoles() {
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const existingRole = roles.find(r => r.id === id);
-      if (!existingRole) {
-        throw new Error('Role not found');
-      }
-      
-      const updatedRole: Role = {
-        ...existingRole,
-        name: data.name || existingRole.name,
-        description: data.description || existingRole.description,
-        permissions: data.permissions || existingRole.permissions,
-        level: data.level || existingRole.level,
-        departmentId: data.departmentId !== undefined ? data.departmentId : existingRole.departmentId,
-        updatedAt: new Date().toISOString()
-      };
-      
+      const updatedRole = await roleService.updateRole(id, data);
       setRoles(prev => prev.map(role => role.id === id ? updatedRole : role));
       return updatedRole;
     } catch (err) {
@@ -81,21 +100,14 @@ export function useRoles() {
     } finally {
       setLoading(false);
     }
-  }, [roles]);
+  }, []);
 
   const deleteRole = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const roleToDelete = roles.find(r => r.id === id);
-      if (roleToDelete && roleToDelete.assignedUsers > 0) {
-        throw new Error('Cannot delete role that has assigned users');
-      }
-      
+      await roleService.deleteRole(id);
       setRoles(prev => prev.filter(role => role.id !== id));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete role';
@@ -104,16 +116,14 @@ export function useRoles() {
     } finally {
       setLoading(false);
     }
-  }, [roles]);
+  }, []);
 
   const toggleRoleStatus = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await roleService.toggleRoleStatus(id);
       setRoles(prev => prev.map(role => 
         role.id === id 
           ? { ...role, isActive: !role.isActive, updatedAt: new Date().toISOString() }
@@ -136,39 +146,41 @@ export function useRoles() {
     updateRole,
     deleteRole,
     toggleRoleStatus,
+    refetch: fetchRoles,
     setError
   };
 }
 
 export function useDepartments() {
-  const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchDepartments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const data = await roleService.getDepartments();
+      setDepartments(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch departments';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDepartments();
+  }, [fetchDepartments]);
 
   const createDepartment = useCallback(async (data: CreateDepartmentRequest): Promise<Department> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newDepartment: Department = {
-        id: `dept_${Date.now()}`,
-        name: data.name,
-        description: data.description,
-        headOfDepartment: data.headOfDepartment,
-        parentDepartmentId: data.parentDepartmentId || undefined,
-        location: data.location,
-        budget: data.budget,
-        isActive: true,
-        userCount: 0,
-        roleCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'current-user@company.com'
-      };
-      
+      const newDepartment = await roleService.createDepartment(data);
       setDepartments(prev => [...prev, newDepartment]);
       return newDepartment;
     } catch (err) {
@@ -185,25 +197,7 @@ export function useDepartments() {
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const existingDepartment = departments.find(d => d.id === id);
-      if (!existingDepartment) {
-        throw new Error('Department not found');
-      }
-      
-      const updatedDepartment: Department = {
-        ...existingDepartment,
-        name: data.name || existingDepartment.name,
-        description: data.description || existingDepartment.description,
-        headOfDepartment: data.headOfDepartment,
-        parentDepartmentId: data.parentDepartmentId,
-        location: data.location,
-        budget: data.budget,
-        updatedAt: new Date().toISOString()
-      };
-      
+      const updatedDepartment = await roleService.updateDepartment(id, data);
       setDepartments(prev => prev.map(dept => dept.id === id ? updatedDepartment : dept));
       return updatedDepartment;
     } catch (err) {
@@ -213,21 +207,14 @@ export function useDepartments() {
     } finally {
       setLoading(false);
     }
-  }, [departments]);
+  }, []);
 
   const deleteDepartment = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const deptToDelete = departments.find(d => d.id === id);
-      if (deptToDelete && (deptToDelete.userCount > 0 || deptToDelete.roleCount > 0)) {
-        throw new Error('Cannot delete department that has assigned users or roles');
-      }
-      
+      await roleService.deleteDepartment(id);
       setDepartments(prev => prev.filter(dept => dept.id !== id));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete department';
@@ -236,16 +223,14 @@ export function useDepartments() {
     } finally {
       setLoading(false);
     }
-  }, [departments]);
+  }, []);
 
   const toggleDepartmentStatus = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await roleService.toggleDepartmentStatus(id);
       setDepartments(prev => prev.map(dept => 
         dept.id === id 
           ? { ...dept, isActive: !dept.isActive, updatedAt: new Date().toISOString() }
@@ -268,6 +253,7 @@ export function useDepartments() {
     updateDepartment,
     deleteDepartment,
     toggleDepartmentStatus,
+    refetch: fetchDepartments,
     setError
   };
 }
