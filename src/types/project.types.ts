@@ -43,8 +43,6 @@ export interface Project {
   status: ProjectStatus;
   priority: ProjectPriority;
   managers: ProjectManager[]; // Changed from single manager to multiple managers
-  team: string[];
-  teamIds?: string[];
   startDate: string;
   endDate: string;
   progress: number;
@@ -88,7 +86,6 @@ export interface ProjectFormData {
   status: ProjectStatus;
   priority: ProjectPriority;
   managers: ProjectManager[]; // Changed to support multiple managers
-  team: string[];
   startDate: string;
   endDate: string;
   budget: string;
@@ -280,3 +277,54 @@ export const CUSTOM_FIELD_TYPES: { value: CustomFieldType; label: string; descri
   { value: 'select', label: 'Dropdown Select', description: 'Predefined options dropdown' },
   { value: 'file', label: 'File Upload', description: 'File attachment field' }
 ];
+
+// Approval Workflow Types
+export type ApprovalStatus = 'pending' | 'under-review' | 'approved' | 'rejected';
+
+export interface Approver {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: string;
+  avatar?: string;
+}
+
+export interface ApprovalStep {
+  id: string;
+  approverId: string;
+  approverName: string;
+  approverEmail: string;
+  department: string;
+  order: number;
+  status: ApprovalStatus;
+  approvedAt?: string;
+  rejectedAt?: string;
+  comments?: string;
+  viewedDocument?: boolean;
+  downloadedDocument?: boolean;
+  openedInSharePoint?: boolean;
+}
+
+export interface DocumentApproval {
+  id: string;
+  documentId: string;
+  requestedBy: string;
+  requestedAt: string;
+  currentStep: number;
+  totalSteps: number;
+  overallStatus: ApprovalStatus;
+  steps: ApprovalStep[];
+  completedAt?: string;
+  comments?: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: string;
+  avatar?: string;
+  isActive: boolean;
+}

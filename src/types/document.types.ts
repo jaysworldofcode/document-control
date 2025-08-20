@@ -21,9 +21,28 @@ export interface Document {
     reason?: string;
   };
   approvalWorkflow?: {
-    currentStep: string;
-    approvers: ApprovalStep[];
-    status: ApprovalStatus;
+    id: string;
+    currentStep: number;
+    totalSteps: number;
+    overallStatus: 'pending' | 'under-review' | 'approved' | 'rejected';
+    steps: {
+      id: string;
+      approverId: string;
+      approverName: string;
+      approverEmail: string;
+      department: string;
+      order: number;
+      status: 'pending' | 'under-review' | 'approved' | 'rejected';
+      approvedAt?: string;
+      rejectedAt?: string;
+      comments?: string;
+      viewedDocument?: boolean;
+      downloadedDocument?: boolean;
+      openedInSharePoint?: boolean;
+    }[];
+    requestedBy: string;
+    requestedAt: string;
+    completedAt?: string;
   };
   revisionHistory: DocumentRevision[];
 }
@@ -37,16 +56,6 @@ export interface DocumentRevision {
   filePath: string;
 }
 
-export interface ApprovalStep {
-  id: string;
-  approverName: string;
-  approverEmail: string;
-  step: number;
-  status: ApprovalStatus;
-  approvedAt?: string;
-  comments?: string;
-}
-
 export type DocumentStatus = 
   | 'draft' 
   | 'pending_review' 
@@ -56,12 +65,6 @@ export type DocumentStatus =
   | 'archived' 
   | 'checked_out'
   | 'final';
-
-export type ApprovalStatus = 
-  | 'pending' 
-  | 'approved' 
-  | 'rejected' 
-  | 'skipped';
 
 export interface DocumentFilter {
   status?: DocumentStatus[];

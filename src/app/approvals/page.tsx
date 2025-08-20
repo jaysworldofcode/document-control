@@ -17,6 +17,7 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
+import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { Document } from "@/types/document.types";
@@ -36,7 +37,8 @@ import {
   Calendar,
   Folder,
   ClipboardList,
-  ExternalLink
+  ExternalLink,
+  Send
 } from "lucide-react";
 
 const reviewStatusConfig = {
@@ -60,6 +62,7 @@ export default function ApprovalsPage() {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
+  const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
 
   // Filter documents that need review
   const reviewDocuments = useMemo(() => {
@@ -111,6 +114,31 @@ export default function ApprovalsPage() {
   const handleRejectDocument = (document: Document) => {
     console.log("Rejecting document:", document.name);
     // In a real app, this would call an API to reject the document
+  };
+
+  const handleSendForApproval = async (approvers: any[], comments?: string) => {
+    if (!sendingForApprovalDocument) return;
+    
+    try {
+      // In a real app, this would call an API to create the approval workflow
+      console.log("Sending document for approval:", {
+        document: sendingForApprovalDocument,
+        approvers,
+        comments
+      });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update document status to "pending_review" 
+      // In real app, this would update the actual document record
+      console.log("Document sent for approval successfully");
+      
+      setSendingForApprovalDocument(null);
+    } catch (error) {
+      console.error("Failed to send document for approval:", error);
+      throw error;
+    }
   };
 
   const formatFileSize = (sizeInBytes: number): string => {
@@ -321,6 +349,10 @@ export default function ApprovalsPage() {
                               Activity Logs
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
+                              <Send className="h-4 w-4 mr-2" />
+                              Send for Approval
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
                               <ExternalLink className="h-4 w-4 mr-2" />
                               Open in SharePoint
@@ -370,6 +402,14 @@ export default function ApprovalsPage() {
           isOpen={logsDocument !== null}
           onClose={() => setLogsDocument(null)}
           document={logsDocument}
+        />
+
+        {/* Send for Approval Modal */}
+        <SendForApprovalModal
+          isOpen={sendingForApprovalDocument !== null}
+          onClose={() => setSendingForApprovalDocument(null)}
+          document={sendingForApprovalDocument}
+          onSubmit={handleSendForApproval}
         />
       </div>
     </AppLayout>

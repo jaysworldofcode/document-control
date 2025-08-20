@@ -50,7 +50,8 @@ import {
   Share,
   History,
   UserCheck,
-  ClipboardList
+  ClipboardList,
+  Send
 } from "lucide-react";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
@@ -61,6 +62,7 @@ import { EditDocumentModal, DocumentUpdateData } from "@/components/forms/edit-d
 import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
+import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 
@@ -79,6 +81,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
+  const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
 
   const handleDownloadDocument = (document: Document) => {
     // In a real app, this would download the actual file
@@ -95,6 +98,31 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     console.log("Opening in SharePoint:", document.fileName);
     const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
     window.open(sharePointUrl, '_blank');
+  };
+
+  const handleSendForApproval = async (approvers: any[], comments?: string) => {
+    if (!sendingForApprovalDocument) return;
+    
+    try {
+      // In a real app, this would call an API to create the approval workflow
+      console.log("Sending document for approval:", {
+        document: sendingForApprovalDocument,
+        approvers,
+        comments
+      });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update document status to "pending_review" 
+      // In real app, this would update the actual document record
+      console.log("Document sent for approval successfully");
+      
+      setSendingForApprovalDocument(null);
+    } catch (error) {
+      console.error("Failed to send document for approval:", error);
+      throw error;
+    }
   };
 
   // Find the project
@@ -250,9 +278,9 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{project.team.length}</div>
+            <div className="text-2xl font-bold">{project.managers.length}</div>
             <p className="text-xs text-muted-foreground">
-              Active members
+              Active managers
             </p>
           </CardContent>
         </Card>
@@ -362,17 +390,19 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                       )}
                     </div>
                   ))}
-                  {/* Team Members */}
-                  {project.team.map((member, index) => (
+                  {/* Team Managers */}
+                  {project.managers.map((manager, index) => (
                     <div key={index} className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
                         <span className="text-sm font-medium">
-                          {member.split(' ').map(n => n[0]).join('')}
+                          {manager.name.split(' ').map((n: string) => n[0]).join('')}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium">{member}</p>
-                        <p className="text-sm text-muted-foreground">Team Member</p>
+                        <p className="font-medium">{manager.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {manager.isPrimaryManager ? 'Primary Manager' : 'Manager'}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -571,6 +601,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 Activity Logs
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
+                                <Send className="h-4 w-4 mr-2" />
+                                Send for Approval
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Open in SharePoint
@@ -717,6 +751,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         isOpen={logsDocument !== null}
         onClose={() => setLogsDocument(null)}
         document={logsDocument}
+      />
+
+      {/* Send for Approval Modal */}
+      <SendForApprovalModal
+        isOpen={sendingForApprovalDocument !== null}
+        onClose={() => setSendingForApprovalDocument(null)}
+        document={sendingForApprovalDocument}
+        onSubmit={handleSendForApproval}
       />
     </div>
   );
