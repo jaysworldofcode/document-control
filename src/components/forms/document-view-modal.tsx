@@ -23,7 +23,8 @@ import {
   Edit,
   Tag,
   Building,
-  Globe
+  Globe,
+  ExternalLink
 } from "lucide-react";
 
 interface DocumentViewModalProps {
@@ -72,6 +73,13 @@ export function DocumentViewModal({
     link.href = '#';
     link.download = document.fileName;
     link.click();
+  };
+
+  const handleOpenInSharePoint = () => {
+    // In a real app, this would construct the actual SharePoint URL
+    console.log("Opening in SharePoint:", document.fileName);
+    const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
+    window.open(sharePointUrl, '_blank');
   };
 
   const formatFileSize = (sizeInBytes: number): string => {
@@ -124,6 +132,10 @@ export function DocumentViewModal({
                 <Button variant="outline" onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-2" />
                   Download
+                </Button>
+                <Button variant="outline" onClick={handleOpenInSharePoint}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in SharePoint
                 </Button>
                 {onEdit && (
                   <Button onClick={() => onEdit(document)}>

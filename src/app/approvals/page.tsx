@@ -35,7 +35,8 @@ import {
   User,
   Calendar,
   Folder,
-  ClipboardList
+  ClipboardList,
+  ExternalLink
 } from "lucide-react";
 
 const reviewStatusConfig = {
@@ -93,6 +94,13 @@ export default function ApprovalsPage() {
     link.href = '#';
     link.download = document.fileName;
     link.click();
+  };
+
+  const handleOpenInSharePoint = (document: Document) => {
+    // In a real app, this would construct the actual SharePoint URL
+    console.log("Opening in SharePoint:", document.fileName);
+    const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
+    window.open(sharePointUrl, '_blank');
   };
 
   const handleApproveDocument = (document: Document) => {
@@ -311,6 +319,11 @@ export default function ApprovalsPage() {
                             <DropdownMenuItem onClick={() => setLogsDocument(document)}>
                               <ClipboardList className="h-4 w-4 mr-2" />
                               Activity Logs
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Open in SharePoint
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

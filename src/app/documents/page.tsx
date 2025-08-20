@@ -50,7 +50,8 @@ import {
   BarChart3,
   FileCheck,
   AlertCircle,
-  ClipboardList
+  ClipboardList,
+  ExternalLink
 } from "lucide-react";
 
 type SortField = "name" | "uploadedAt" | "fileSize" | "status" | "project";
@@ -185,6 +186,13 @@ export default function MyDocumentsPage() {
     link.href = '#';
     link.download = document.fileName;
     link.click();
+  };
+
+  const handleOpenInSharePoint = (document: Document) => {
+    // In a real app, this would construct the actual SharePoint URL
+    console.log("Opening in SharePoint:", document.fileName);
+    const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
+    window.open(sharePointUrl, '_blank');
   };
 
   const formatFileSize = (sizeInBytes: number): string => {
@@ -455,6 +463,10 @@ export default function MyDocumentsPage() {
                                 Activity Logs
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Open in SharePoint
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => router.push(`/projects/${document.projectId}`)}>
                                 <Folder className="h-4 w-4 mr-2" />
                                 Go to Project
@@ -504,6 +516,11 @@ export default function MyDocumentsPage() {
                           <DropdownMenuItem onClick={() => setLogsDocument(document)}>
                             <ClipboardList className="h-4 w-4 mr-2" />
                             Activity Logs
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Open in SharePoint
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
