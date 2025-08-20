@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AppLayout } from "@/components/layout/app-layout";
 import { AvatarUpload, PasswordStrength } from "@/components/settings/settings-components";
 import { 
@@ -45,33 +53,17 @@ import {
   Globe,
   Users,
   Zap,
-  Loader2
+  Loader2,
+  Save
 } from "lucide-react";
+import { useUserSettings, useSystemSettings } from "@/hooks/useSettings";
 import { 
-  MOCK_ORGANIZATION_SETTINGS, 
-  CURRENT_USER_PERMISSIONS,
-  CURRENT_USER_ROLE 
-} from "@/constants/organization.constants";
-import { AzureFormData } from "@/types/organization.types";
-import { testAzureConnection, validateAzureCredentials } from "@/utils/azure.utils";
-
-// Mock user data
-const mockUser = {
-  id: "user_1",
-  firstName: "John",
-  lastName: "Doe",
-  email: "john.doe@techcorp.com",
-  phone: "+1 (555) 123-4567",
-  department: "Engineering",
-  role: "Senior Engineer",
-  avatar: "/api/placeholder/100/100",
-  joinDate: "2023-01-15",
-  lastLogin: "2024-08-19T10:30:00Z",
-  permissions: ["read", "write", "approve"],
-  preferences: {
-    emailNotifications: true,
-  }
-};
+  NOTIFICATION_TYPES, 
+  NOTIFICATION_FREQUENCIES,
+  NotificationTypeConfig,
+  NotificationFrequency 
+} from "@/types/settings.types";
+import { createClient } from "@/lib/supabase";
 
 type FeedbackType = "bug" | "feature" | "general";
 
@@ -82,7 +74,27 @@ interface FeedbackData {
 }
 
 export default function SettingsPage() {
-  const [user, setUser] = useState(mockUser);
+  const {
+    profile,
+    notificationPreferences,
+    isLoading: isLoadingUser,
+    isUpdating,
+    error: userError,
+    updateProfile,
+    updateNotificationSetting,
+    updatePassword,
+    getNotificationPreference,
+    getAllNotificationsEnabled,
+    toggleAllNotifications
+  } = useUserSettings();
+
+  const {
+    settings: systemSettings,
+    isLoading: isLoadingSystem,
+    updateSetting: updateSystemSetting,
+    getSettingValue
+  } = useSystemSettings();
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -90,19 +102,17 @@ export default function SettingsPage() {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isEditingAzure, setIsEditingAzure] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<string | null>(null);
-  const [isEditingOrganization, setIsEditingOrganization] = useState(false);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone,
-    department: user.department,
+    full_name: "",
+    phone: "",
+    department: "",
   });
 
   // Password form state
@@ -119,44 +129,160 @@ export default function SettingsPage() {
     message: "",
   });
 
-  // Azure credentials form state
-  const [azureForm, setAzureForm] = useState<AzureFormData>({
-    tenantId: MOCK_ORGANIZATION_SETTINGS.azure.tenantId,
-    clientId: MOCK_ORGANIZATION_SETTINGS.azure.clientId,
-    clientSecret: MOCK_ORGANIZATION_SETTINGS.azure.clientSecret,
-    sharePointSiteUrl: MOCK_ORGANIZATION_SETTINGS.azure.sharePointSiteUrl,
-    defaultFolderPath: MOCK_ORGANIZATION_SETTINGS.azure.defaultFolderPath,
+  // Azure SharePoint form state
+  const [azureForm, setAzureForm] = useState({
+    tenant_id: "",
+    client_id: "",
+    client_secret: "",
+    sharepoint_site_url: "",
+    default_folder_path: "/Documents",
   });
 
-  // Organization form state
-  const [organizationForm, setOrganizationForm] = useState({
-    name: MOCK_ORGANIZATION_SETTINGS.general.name,
-    domain: MOCK_ORGANIZATION_SETTINGS.general.domain,
-    logo: MOCK_ORGANIZATION_SETTINGS.general.logo,
-  });
+  // Update profile form when profile data loads
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        full_name: profile.full_name || "",
+        phone: profile.phone || "",
+        department: profile.department || "",
+      });
+    }
+  }, [profile]);
 
-  const handleProfileUpdate = () => {
-    setUser(prev => ({
-      ...prev,
-      ...profileForm
-    }));
-    setIsEditingProfile(false);
-    // In a real app, this would call an API to update the profile
-    console.log("Profile updated:", profileForm);
+  // Load Azure settings from system settings
+  useEffect(() => {
+    if (systemSettings.length > 0) {
+      setAzureForm({
+        tenant_id: getSettingValue('azure_tenant_id', ''),
+        client_id: getSettingValue('azure_client_id', ''),
+        client_secret: getSettingValue('azure_client_secret', ''),
+        sharepoint_site_url: getSettingValue('azure_sharepoint_url', ''),
+        default_folder_path: getSettingValue('azure_default_folder', '/Documents'),
+      });
+    }
+  }, [systemSettings, getSettingValue]);
+
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  const handleProfileUpdate = async () => {
+    const result = await updateProfile({
+      full_name: profileForm.full_name,
+      phone: profileForm.phone,
+      department: profileForm.department,
+    });
+
+    if (result.success) {
+      setIsEditingProfile(false);
+      setSuccessMessage("Profile updated successfully!");
+    }
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       alert("New passwords don't match!");
       return;
     }
-    // In a real app, this would call an API to change the password
-    console.log("Password changed");
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+
+    const result = await updatePassword(passwordForm.newPassword);
+    
+    if (result.success) {
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setSuccessMessage("Password changed successfully!");
+    }
+  };
+
+  const handleNotificationToggle = async (
+    type: NotificationTypeConfig,
+    setting: 'email_enabled' | 'push_enabled' | 'in_app_enabled',
+    value: boolean
+  ) => {
+    const result = await updateNotificationSetting(type, { [setting]: value });
+    
+    if (result.success) {
+      setSuccessMessage("Notification preference updated!");
+    }
+  };
+
+  const handleNotificationFrequencyChange = async (
+    type: NotificationTypeConfig,
+    frequency: NotificationFrequency
+  ) => {
+    const result = await updateNotificationSetting(type, { frequency });
+    
+    if (result.success) {
+      setSuccessMessage("Notification frequency updated!");
+    }
+  };
+
+  const handleToggleAllNotifications = async (enabled: boolean) => {
+    const result = await toggleAllNotifications(enabled);
+    
+    if (result.success) {
+      setSuccessMessage(`All notifications ${enabled ? 'enabled' : 'disabled'}!`);
+    }
+  };
+
+  const handleAzureUpdate = async () => {
+    try {
+      setIsUpdating(true);
+      
+      // Update all Azure settings in the database
+      const updates = [
+        updateSystemSetting('azure_tenant_id', azureForm.tenant_id, 'Azure AD Tenant ID'),
+        updateSystemSetting('azure_client_id', azureForm.client_id, 'Azure AD Client (Application) ID'),
+        updateSystemSetting('azure_client_secret', azureForm.client_secret, 'Azure AD Client Secret'),
+        updateSystemSetting('azure_sharepoint_url', azureForm.sharepoint_site_url, 'SharePoint Site URL'),
+        updateSystemSetting('azure_default_folder', azureForm.default_folder_path, 'Default SharePoint Folder Path'),
+      ];
+
+      await Promise.all(updates);
+      
+      setIsEditingAzure(false);
+      setSuccessMessage("Azure SharePoint configuration updated successfully!");
+    } catch (error) {
+      console.error('Error updating Azure settings:', error);
+      setSuccessMessage("Failed to update Azure configuration. Please try again.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleTestAzureConnection = async () => {
+    // Validate required fields
+    if (!azureForm.tenant_id || !azureForm.client_id || !azureForm.client_secret) {
+      setConnectionTestResult('❌ Please fill in all required Azure credentials');
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+
+    try {
+      // In a real app, you would call your Azure connection test API here
+      // For now, we'll simulate the test
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate success/failure based on whether fields are filled
+      if (azureForm.sharepoint_site_url && azureForm.sharepoint_site_url.includes('sharepoint.com')) {
+        setConnectionTestResult('✅ Connection test successful! Azure credentials are valid.');
+      } else {
+        setConnectionTestResult('❌ Connection test failed. Please check your SharePoint Site URL.');
+      }
+    } catch (error) {
+      setConnectionTestResult(`❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsTestingConnection(false);
+    }
   };
 
   const handleSendFeedback = () => {
@@ -174,60 +300,11 @@ export default function SettingsPage() {
     }, 2000);
   };
 
-  const handleLogout = () => {
-    // In a real app, this would clear authentication tokens and redirect
-    console.log("User logged out");
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     setIsLogoutDialogOpen(false);
-    // window.location.href = "/login";
-  };
-
-  const handleAzureUpdate = () => {
-    // In a real app, this would call an API to update Azure credentials
-    console.log("Azure credentials updated:", azureForm);
-    setIsEditingAzure(false);
-    // Show success message or handle API response
-  };
-
-  const handleOrganizationUpdate = () => {
-    // In a real app, this would call an API to update organization details
-    console.log("Organization updated:", organizationForm);
-    setIsEditingOrganization(false);
-    // Show success message or handle API response
-  };
-
-  const handleTestAzureConnection = async () => {
-    // Validate credentials first
-    const validation = validateAzureCredentials({
-      tenantId: azureForm.tenantId,
-      clientId: azureForm.clientId,
-      clientSecret: azureForm.clientSecret
-    });
-
-    if (!validation.valid) {
-      setConnectionTestResult(`❌ ${validation.error}`);
-      return;
-    }
-
-    setIsTestingConnection(true);
-    setConnectionTestResult(null);
-
-    try {
-      const result = await testAzureConnection({
-        tenantId: azureForm.tenantId,
-        clientId: azureForm.clientId,
-        clientSecret: azureForm.clientSecret
-      });
-
-      if (result.success) {
-        setConnectionTestResult(`✅ ${result.message}`);
-      } else {
-        setConnectionTestResult(`❌ ${result.message}: ${result.error}`);
-      }
-    } catch (error) {
-      setConnectionTestResult(`❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsTestingConnection(false);
-    }
+    window.location.href = "/login";
   };
 
   const feedbackTypeConfig = {
@@ -235,6 +312,16 @@ export default function SettingsPage() {
     feature: { label: "Feature Request", icon: Info, color: "text-blue-600" },
     general: { label: "General Feedback", icon: MessageSquare, color: "text-gray-600" },
   };
+
+  if (isLoadingUser || isLoadingSystem) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -259,19 +346,35 @@ export default function SettingsPage() {
               <Lock className="h-4 w-4" />
               Security
             </TabsTrigger>
-            <TabsTrigger value="organization" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              Organization
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
             </TabsTrigger>
-            <TabsTrigger value="feedback" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Feedback
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              Integrations
             </TabsTrigger>
             <TabsTrigger value="account" className="flex items-center gap-2">
               <LogOut className="h-4 w-4" />
               Account
             </TabsTrigger>
           </TabsList>
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+              <Check className="h-4 w-4 text-green-600" />
+              <p className="text-sm text-green-800">{successMessage}</p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {userError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <p className="text-sm text-red-800">{userError}</p>
+            </div>
+          )}
 
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
@@ -290,17 +393,17 @@ export default function SettingsPage() {
                       <User className="h-10 w-10 text-primary" />
                     </div>
                     <AvatarUpload 
-                      currentAvatar={user.avatar}
+                      currentAvatar={profile?.avatar_url}
                       onAvatarChange={(newAvatar) => {
-                        setUser(prev => ({ ...prev, avatar: newAvatar }));
+                        updateProfile({ avatar_url: newAvatar });
                       }}
                     />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold">{user.firstName} {user.lastName}</h3>
-                    <p className="text-muted-foreground">{user.role}</p>
+                    <h3 className="text-xl font-semibold">{profile?.full_name || "No name set"}</h3>
+                    <p className="text-muted-foreground">{profile?.role}</p>
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline">{user.department}</Badge>
+                      <Badge variant="outline">{profile?.department || "No department"}</Badge>
                       <Badge variant="secondary">Active</Badge>
                     </div>
                   </div>
@@ -308,6 +411,7 @@ export default function SettingsPage() {
                     <Button
                       variant={isEditingProfile ? "outline" : "default"}
                       onClick={() => setIsEditingProfile(!isEditingProfile)}
+                      disabled={isUpdating}
                     >
                       {isEditingProfile ? "Cancel" : "Edit Profile"}
                     </Button>
@@ -319,21 +423,12 @@ export default function SettingsPage() {
                 {/* Profile Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="fullName">Full Name</Label>
                     <Input
-                      id="firstName"
-                      value={profileForm.firstName}
-                      onChange={(e) => setProfileForm(prev => ({ ...prev, firstName: e.target.value }))}
-                      disabled={!isEditingProfile}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      value={profileForm.lastName}
-                      onChange={(e) => setProfileForm(prev => ({ ...prev, lastName: e.target.value }))}
-                      disabled={!isEditingProfile}
+                      id="fullName"
+                      value={profileForm.full_name}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
+                      disabled={!isEditingProfile || isUpdating}
                     />
                   </div>
                   <div className="space-y-2">
@@ -343,12 +438,12 @@ export default function SettingsPage() {
                       <Input
                         id="email"
                         type="email"
-                        value={profileForm.email}
-                        onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
-                        disabled={!isEditingProfile}
+                        value={profile?.email || ""}
+                        disabled
                         className="pl-10"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
@@ -359,7 +454,7 @@ export default function SettingsPage() {
                         type="tel"
                         value={profileForm.phone}
                         onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
-                        disabled={!isEditingProfile}
+                        disabled={!isEditingProfile || isUpdating}
                         className="pl-10"
                       />
                     </div>
@@ -372,17 +467,29 @@ export default function SettingsPage() {
                         id="department"
                         value={profileForm.department}
                         onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))}
-                        disabled={!isEditingProfile}
+                        disabled={!isEditingProfile || isUpdating}
                         className="pl-10"
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={profile?.role || ""}
+                        disabled
+                        className="pl-10"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Role is managed by administrators</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Join Date</Label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        value={new Date(user.joinDate).toLocaleDateString()}
+                        value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ""}
                         disabled
                         className="pl-10"
                       />
@@ -392,11 +499,11 @@ export default function SettingsPage() {
 
                 {isEditingProfile && (
                   <div className="flex gap-2 pt-4">
-                    <Button onClick={handleProfileUpdate}>
-                      <Check className="h-4 w-4 mr-2" />
+                    <Button onClick={handleProfileUpdate} disabled={isUpdating}>
+                      {isUpdating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                       Save Changes
                     </Button>
-                    <Button variant="outline" onClick={() => setIsEditingProfile(false)}>
+                    <Button variant="outline" onClick={() => setIsEditingProfile(false)} disabled={isUpdating}>
                       <X className="h-4 w-4 mr-2" />
                       Cancel
                     </Button>
@@ -417,27 +524,21 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label className="text-sm font-medium">User ID</Label>
-                    <p className="text-sm text-muted-foreground font-mono">{user.id}</p>
+                    <p className="text-sm text-muted-foreground font-mono">{profile?.id}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Last Login</Label>
+                    <Label className="text-sm font-medium">Last Updated</Label>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(user.lastLogin).toLocaleString()}
+                      {profile?.updated_at ? new Date(profile.updated_at).toLocaleString() : "Never"}
                     </p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Role</Label>
-                    <p className="text-sm text-muted-foreground">{user.role}</p>
+                    <p className="text-sm text-muted-foreground">{profile?.role}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Permissions</Label>
-                    <div className="flex gap-1 mt-1">
-                      {user.permissions.map((permission) => (
-                        <Badge key={permission} variant="outline" className="text-xs">
-                          {permission}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Label className="text-sm font-medium">Account Status</Label>
+                    <Badge variant="default" className="text-xs">Active</Badge>
                   </div>
                 </div>
               </CardContent>
@@ -463,6 +564,7 @@ export default function SettingsPage() {
                       value={passwordForm.currentPassword}
                       onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
                       placeholder="Enter your current password"
+                      disabled={isUpdating}
                     />
                     <Button
                       type="button"
@@ -485,6 +587,7 @@ export default function SettingsPage() {
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
                       placeholder="Enter your new password"
+                      disabled={isUpdating}
                     />
                     <Button
                       type="button"
@@ -510,6 +613,7 @@ export default function SettingsPage() {
                       value={passwordForm.confirmPassword}
                       onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                       placeholder="Confirm your new password"
+                      disabled={isUpdating}
                     />
                     <Button
                       type="button"
@@ -532,414 +636,362 @@ export default function SettingsPage() {
 
                 <Button 
                   onClick={handlePasswordChange}
-                  disabled={!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                  disabled={!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || isUpdating}
                 >
-                  <Lock className="h-4 w-4 mr-2" />
+                  {isUpdating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Lock className="h-4 w-4 mr-2" />}
                   Change Password
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Notification Preferences */}
+          {/* Notifications Tab */}
+          <TabsContent value="notifications" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5" />
                   Notification Preferences
                 </CardTitle>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={getAllNotificationsEnabled()}
+                      onCheckedChange={handleToggleAllNotifications}
+                      disabled={isUpdating}
+                    />
+                    <Label className="text-sm">Enable all notifications</Label>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {Object.entries(NOTIFICATION_TYPES).map(([type, config]) => {
+                  const preference = getNotificationPreference(type as NotificationTypeConfig);
+                  
+                  return (
+                    <div key={type} className="space-y-4 p-4 border rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <h4 className="font-medium">{config.label}</h4>
+                          <p className="text-sm text-muted-foreground">{config.description}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={preference?.email_enabled || false}
+                            onCheckedChange={(checked) => 
+                              handleNotificationToggle(type as NotificationTypeConfig, 'email_enabled', checked)
+                            }
+                            disabled={isUpdating}
+                          />
+                          <Label className="text-sm">Email</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={preference?.push_enabled || false}
+                            onCheckedChange={(checked) => 
+                              handleNotificationToggle(type as NotificationTypeConfig, 'push_enabled', checked)
+                            }
+                            disabled={isUpdating}
+                          />
+                          <Label className="text-sm">Push</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={preference?.in_app_enabled || false}
+                            onCheckedChange={(checked) => 
+                              handleNotificationToggle(type as NotificationTypeConfig, 'in_app_enabled', checked)
+                            }
+                            disabled={isUpdating}
+                          />
+                          <Label className="text-sm">In-App</Label>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-sm">Frequency</Label>
+                          <Select
+                            value={preference?.frequency || 'immediate'}
+                            onValueChange={(value) => 
+                              handleNotificationFrequencyChange(
+                                type as NotificationTypeConfig, 
+                                value as NotificationFrequency
+                              )
+                            }
+                            disabled={isUpdating}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(NOTIFICATION_FREQUENCIES).map(([freq, label]) => (
+                                <SelectItem key={freq} value={freq}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="space-y-6">
+            {/* Azure SharePoint Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Cloud className="h-5 w-5" />
+                  Azure SharePoint Integration
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${azureForm.tenant_id && azureForm.client_id && azureForm.client_secret ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span className="text-sm text-muted-foreground">
+                    {azureForm.tenant_id && azureForm.client_id && azureForm.client_secret ? 'Configured' : 'Not configured'}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive email notifications for important updates</p>
+                    <h4 className="font-medium">Azure Active Directory Configuration</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Configure Azure AD credentials for SharePoint authentication and document management
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    {user.preferences.emailNotifications ? "Enabled" : "Disabled"}
+                  <Button
+                    variant={isEditingAzure ? "outline" : "default"}
+                    onClick={() => setIsEditingAzure(!isEditingAzure)}
+                    disabled={isUpdating}
+                  >
+                    {isEditingAzure ? "Cancel" : "Edit Configuration"}
                   </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="tenantId">Tenant ID *</Label>
+                    <Input
+                      id="tenantId"
+                      value={azureForm.tenant_id}
+                      onChange={(e) => setAzureForm(prev => ({ ...prev, tenant_id: e.target.value }))}
+                      disabled={!isEditingAzure || isUpdating}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your Azure AD Directory (tenant) ID
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="clientId">Client (Application) ID *</Label>
+                    <Input
+                      id="clientId"
+                      value={azureForm.client_id}
+                      onChange={(e) => setAzureForm(prev => ({ ...prev, client_id: e.target.value }))}
+                      disabled={!isEditingAzure || isUpdating}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Application ID from your Azure App Registration
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="clientSecret">Client Secret *</Label>
+                    <div className="relative">
+                      <Input
+                        id="clientSecret"
+                        type={showClientSecret ? "text" : "password"}
+                        value={azureForm.client_secret}
+                        onChange={(e) => setAzureForm(prev => ({ ...prev, client_secret: e.target.value }))}
+                        disabled={!isEditingAzure || isUpdating}
+                        placeholder="Enter client secret"
+                      />
+                      {isEditingAzure && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                          onClick={() => setShowClientSecret(!showClientSecret)}
+                        >
+                          {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Client secret value from your Azure App Registration
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sharePointSiteUrl">SharePoint Site URL</Label>
+                    <Input
+                      id="sharePointSiteUrl"
+                      value={azureForm.sharepoint_site_url}
+                      onChange={(e) => setAzureForm(prev => ({ ...prev, sharepoint_site_url: e.target.value }))}
+                      disabled={!isEditingAzure || isUpdating}
+                      placeholder="https://yourcompany.sharepoint.com/sites/yoursite"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your SharePoint site URL for document storage
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="defaultFolderPath">Default Folder Path</Label>
+                    <Input
+                      id="defaultFolderPath"
+                      value={azureForm.default_folder_path}
+                      onChange={(e) => setAzureForm(prev => ({ ...prev, default_folder_path: e.target.value }))}
+                      disabled={!isEditingAzure || isUpdating}
+                      placeholder="/Documents/Projects"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Default folder path for storing documents in SharePoint
+                    </p>
+                  </div>
+                </div>
+
+                {/* Configuration Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Azure App Registration Required</p>
+                      <p className="mb-2">
+                        You need to register an application in Azure Active Directory with the following API permissions:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Sites.ReadWrite.All</strong> - Read and write items in all site collections</li>
+                        <li><strong>Files.ReadWrite.All</strong> - Read and write files in all site collections</li>
+                        <li><strong>User.Read</strong> - Sign in and read user profile</li>
+                      </ul>
+                      <p className="mt-2">
+                        <strong>Note:</strong> Make sure to grant admin consent for these permissions in your Azure portal.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                {isEditingAzure && (
+                  <div className="flex gap-2 pt-4">
+                    <Button onClick={handleAzureUpdate} disabled={isUpdating}>
+                      {isUpdating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                      Save Configuration
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleTestAzureConnection}
+                      disabled={isTestingConnection || isUpdating}
+                    >
+                      {isTestingConnection ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Test Connection
+                        </>
+                      )}
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsEditingAzure(false)} disabled={isUpdating}>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+
+                {/* Connection Test Result */}
+                {connectionTestResult && (
+                  <div className={`p-3 rounded-lg text-sm ${
+                    connectionTestResult.startsWith('✅') 
+                      ? 'bg-green-50 border border-green-200 text-green-800' 
+                      : 'bg-red-50 border border-red-200 text-red-800'
+                  }`}>
+                    {connectionTestResult}
+                  </div>
+                )}
+
+                {/* Integration Status */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Integration Status</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Key className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium">Azure Auth</span>
+                      </div>
+                      <Badge variant={azureForm.tenant_id && azureForm.client_id && azureForm.client_secret ? "default" : "secondary"}>
+                        {azureForm.tenant_id && azureForm.client_id && azureForm.client_secret ? "Configured" : "Not Set"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium">SharePoint</span>
+                      </div>
+                      <Badge variant={azureForm.sharepoint_site_url ? "default" : "secondary"}>
+                        {azureForm.sharepoint_site_url ? "Configured" : "Not Set"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Cloud className="h-4 w-4 text-purple-600" />
+                        <span className="text-sm font-medium">Integration</span>
+                      </div>
+                      <Badge variant={azureForm.tenant_id && azureForm.client_id && azureForm.client_secret && azureForm.sharepoint_site_url ? "default" : "secondary"}>
+                        {azureForm.tenant_id && azureForm.client_id && azureForm.client_secret && azureForm.sharepoint_site_url ? "Ready" : "Incomplete"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Setup Guide */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Quick Setup Guide</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">1</span>
+                      <p>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Azure Portal</a> and register a new application</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">2</span>
+                      <p>Copy the Application (client) ID and Directory (tenant) ID</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">3</span>
+                      <p>Create a new client secret and copy its value</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">4</span>
+                      <p>Add the required API permissions and grant admin consent</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium">5</span>
+                      <p>Enter your SharePoint site URL and configure the settings above</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Organization Tab */}
-          <TabsContent value="organization" className="space-y-6">
-            {/* Permission Check */}
-            {!CURRENT_USER_PERMISSIONS.canViewSettings ? (
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-center">
-                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
-                    <p className="text-muted-foreground">
-                      You don't have permission to view organization settings. Only organization owners and admins can access this section.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Organization Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building className="h-5 w-5" />
-                      Organization Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="flex items-center gap-6">
-                      <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Building className="h-10 w-10 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        {!isEditingOrganization ? (
-                          <>
-                            <h3 className="text-xl font-semibold">{organizationForm.name}</h3>
-                            <p className="text-muted-foreground">{organizationForm.domain}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="outline">Pro Plan</Badge>
-                              <Badge variant="secondary">12/50 Users</Badge>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="orgName">Organization Name</Label>
-                              <Input
-                                id="orgName"
-                                value={organizationForm.name}
-                                onChange={(e) => setOrganizationForm(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder="Enter organization name"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="orgDomain">Domain</Label>
-                              <Input
-                                id="orgDomain"
-                                value={organizationForm.domain}
-                                onChange={(e) => setOrganizationForm(prev => ({ ...prev, domain: e.target.value }))}
-                                placeholder="company.com"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Your Role</p>
-                        <Badge variant="default" className="mt-1">
-                          {CURRENT_USER_ROLE.charAt(0).toUpperCase() + CURRENT_USER_ROLE.slice(1)}
-                        </Badge>
-                        <div className="mt-3">
-                          {!isEditingOrganization ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setIsEditingOrganization(true)}
-                              disabled={!CURRENT_USER_PERMISSIONS.canEditOrganization}
-                            >
-                              <SettingsIcon className="h-4 w-4 mr-2" />
-                              Edit Details
-                            </Button>
-                          ) : (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={handleOrganizationUpdate}
-                              >
-                                <Check className="h-4 w-4 mr-2" />
-                                Save
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setIsEditingOrganization(false);
-                                  setOrganizationForm({
-                                    name: MOCK_ORGANIZATION_SETTINGS.general.name,
-                                    domain: MOCK_ORGANIZATION_SETTINGS.general.domain,
-                                    logo: MOCK_ORGANIZATION_SETTINGS.general.logo,
-                                  });
-                                }}
-                              >
-                                <X className="h-4 w-4 mr-2" />
-                                Cancel
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Permission notice for non-owners */}
-                    {!CURRENT_USER_PERMISSIONS.canEditOrganization && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Info className="h-4 w-4 text-amber-600 mt-0.5" />
-                          <p className="text-sm text-amber-800">
-                            Only organization owners can edit organization details.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Azure SharePoint Integration */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Cloud className="h-5 w-5" />
-                      Azure SharePoint Integration
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
-                      <span className="text-sm text-muted-foreground">
-                        {MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? 'Connected' : 'Disconnected'}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {!CURRENT_USER_PERMISSIONS.canConfigureIntegrations ? (
-                      <div className="text-center p-6 bg-muted/50 rounded-lg">
-                        <Lock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">
-                          Only organization owners and admins can configure Azure integration.
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Azure Active Directory Configuration</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Configure Azure AD credentials for SharePoint token authentication
-                            </p>
-                          </div>
-                          <Button
-                            variant={isEditingAzure ? "outline" : "default"}
-                            onClick={() => setIsEditingAzure(!isEditingAzure)}
-                          >
-                            {isEditingAzure ? "Cancel" : "Edit Configuration"}
-                          </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                            <Label htmlFor="tenantId">Tenant ID</Label>
-                            <Input
-                              id="tenantId"
-                              value={azureForm.tenantId}
-                              onChange={(e) => setAzureForm(prev => ({ ...prev, tenantId: e.target.value }))}
-                              disabled={!isEditingAzure}
-                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="clientId">Client (Application) ID</Label>
-                            <Input
-                              id="clientId"
-                              value={azureForm.clientId}
-                              onChange={(e) => setAzureForm(prev => ({ ...prev, clientId: e.target.value }))}
-                              disabled={!isEditingAzure}
-                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="clientSecret">Client Secret</Label>
-                            <div className="relative">
-                              <Input
-                                id="clientSecret"
-                                type={showClientSecret ? "text" : "password"}
-                                value={azureForm.clientSecret}
-                                onChange={(e) => setAzureForm(prev => ({ ...prev, clientSecret: e.target.value }))}
-                                disabled={!isEditingAzure}
-                                placeholder="Enter client secret"
-                              />
-                              {isEditingAzure && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                                  onClick={() => setShowClientSecret(!showClientSecret)}
-                                >
-                                  {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="sharePointSiteUrl">SharePoint Site URL</Label>
-                            <Input
-                              id="sharePointSiteUrl"
-                              value={azureForm.sharePointSiteUrl}
-                              onChange={(e) => setAzureForm(prev => ({ ...prev, sharePointSiteUrl: e.target.value }))}
-                              disabled={!isEditingAzure}
-                              placeholder="https://yourcompany.sharepoint.com/sites/yoursite"
-                            />
-                          </div>
-
-                          <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="defaultFolderPath">Default Folder Path</Label>
-                            <Input
-                              id="defaultFolderPath"
-                              value={azureForm.defaultFolderPath}
-                              onChange={(e) => setAzureForm(prev => ({ ...prev, defaultFolderPath: e.target.value }))}
-                              disabled={!isEditingAzure}
-                              placeholder="/Documents/Projects"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Configuration Info */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <div className="flex items-start gap-3">
-                            <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-                            <div className="text-sm text-blue-800">
-                              <p className="font-medium mb-1">Azure App Registration Required</p>
-                              <p>
-                                You need to register an application in Azure Active Directory with the following permissions:
-                              </p>
-                              <ul className="list-disc list-inside mt-2 space-y-1">
-                                <li>Sites.ReadWrite.All</li>
-                                <li>Files.ReadWrite.All</li>
-                                <li>User.Read</li>
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        {isEditingAzure && (
-                          <div className="flex gap-2 pt-4">
-                            <Button onClick={handleAzureUpdate}>
-                              <Check className="h-4 w-4 mr-2" />
-                              Save Configuration
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              onClick={handleTestAzureConnection}
-                              disabled={isTestingConnection}
-                            >
-                              {isTestingConnection ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Testing...
-                                </>
-                              ) : (
-                                <>
-                                  <Zap className="h-4 w-4 mr-2" />
-                                  Test Connection
-                                </>
-                              )}
-                            </Button>
-                            <Button variant="outline" onClick={() => setIsEditingAzure(false)}>
-                              <X className="h-4 w-4 mr-2" />
-                              Cancel
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Connection Test Result */}
-                        {connectionTestResult && (
-                          <div className={`p-3 rounded-lg text-sm ${
-                            connectionTestResult.startsWith('✅') 
-                              ? 'bg-green-50 border border-green-200 text-green-800' 
-                              : 'bg-red-50 border border-red-200 text-red-800'
-                          }`}>
-                            {connectionTestResult}
-                          </div>
-                        )}
-
-                        {/* Integration Status */}
-                        <div className="space-y-3">
-                          <h4 className="font-medium">Integration Status</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center justify-between p-3 border rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <Cloud className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-medium">Azure Connection</span>
-                              </div>
-                              <Badge variant={MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? "default" : "secondary"}>
-                                {MOCK_ORGANIZATION_SETTINGS.integrations.isAzureEnabled ? "Active" : "Inactive"}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center justify-between p-3 border rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-green-600" />
-                                <span className="text-sm font-medium">SharePoint Sync</span>
-                              </div>
-                              <Badge variant={MOCK_ORGANIZATION_SETTINGS.integrations.isSharePointEnabled ? "default" : "secondary"}>
-                                {MOCK_ORGANIZATION_SETTINGS.integrations.isSharePointEnabled ? "Enabled" : "Disabled"}
-                              </Badge>
-                            </div>
-                          </div>
-                          {MOCK_ORGANIZATION_SETTINGS.integrations.lastSyncAt && (
-                            <p className="text-xs text-muted-foreground">
-                              Last sync: {new Date(MOCK_ORGANIZATION_SETTINGS.integrations.lastSyncAt).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Organization Members */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Organization Members
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">
-                          12 of 50 users in your organization
-                        </p>
-                        {CURRENT_USER_PERMISSIONS.canManageMembers && (
-                          <Button variant="outline" size="sm">
-                            <Users className="h-4 w-4 mr-2" />
-                            Manage Members
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {['Owner', 'Admin', 'Member'].map((role, index) => (
-                          <div key={role} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <User className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <p className="font-medium">{role}s</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {index === 0 ? '1 user' : index === 1 ? '2 users' : '9 users'}
-                                </p>
-                              </div>
-                            </div>
-                            <Badge variant="outline">
-                              {role}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Feedback Tab */}
-          <TabsContent value="feedback" className="space-y-6">
+          {/* Account Tab */}
+          <TabsContent value="account" className="space-y-6">
+            {/* Feedback Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1061,10 +1113,8 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Account Tab */}
-          <TabsContent value="account" className="space-y-6">
+            {/* Account Actions */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

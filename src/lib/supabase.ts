@@ -265,6 +265,120 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      system_settings: {
+        Row: {
+          id: string
+          key: string
+          value: any
+          description: string | null
+          is_public: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value: any
+          description?: string | null
+          is_public?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: any
+          description?: string | null
+          is_public?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      notification_preferences: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          email_enabled: boolean
+          push_enabled: boolean
+          in_app_enabled: boolean
+          frequency: 'immediate' | 'hourly' | 'daily' | 'weekly' | 'never'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          email_enabled?: boolean
+          push_enabled?: boolean
+          in_app_enabled?: boolean
+          frequency?: 'immediate' | 'hourly' | 'daily' | 'weekly' | 'never'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          email_enabled?: boolean
+          push_enabled?: boolean
+          in_app_enabled?: boolean
+          frequency?: 'immediate' | 'hourly' | 'daily' | 'weekly' | 'never'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string
+          message: string
+          data: any
+          related_document_id: string | null
+          related_project_id: string | null
+          related_user_id: string | null
+          is_read: boolean
+          is_email_sent: boolean
+          priority: 'low' | 'normal' | 'high' | 'urgent'
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title: string
+          message: string
+          data?: any
+          related_document_id?: string | null
+          related_project_id?: string | null
+          related_user_id?: string | null
+          is_read?: boolean
+          is_email_sent?: boolean
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          message?: string
+          data?: any
+          related_document_id?: string | null
+          related_project_id?: string | null
+          related_user_id?: string | null
+          is_read?: boolean
+          is_email_sent?: boolean
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          expires_at?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
