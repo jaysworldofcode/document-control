@@ -122,6 +122,18 @@ export default function SettingsPage() {
     size: organization?.size || "",
   });
 
+  // SharePoint integration state
+  const [isEditingSharePoint, setIsEditingSharePoint] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
+  const [sharePointForm, setSharePointForm] = useState({
+    tenantId: "",
+    clientId: "",
+    clientSecret: "",
+    siteUrl: "",
+    documentLibrary: "",
+    isEnabled: false,
+  });
+
   // Update form when user or organization data changes
   useEffect(() => {
     if (user) {
@@ -803,37 +815,278 @@ export default function SettingsPage() {
                   SharePoint Integration
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-gray-300" />
-                  <span className="text-sm text-muted-foreground">Not Connected</span>
+                  <div className={`h-2 w-2 rounded-full ${sharePointForm.isEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span className="text-sm text-muted-foreground">
+                    {sharePointForm.isEnabled ? 'Connected' : 'Not Connected'}
+                  </span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <Cloud className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-semibold mb-2">Connect to SharePoint</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Sync your documents with Microsoft SharePoint for better collaboration and storage.
-                  </p>
-                  <Button>
-                    <Cloud className="h-4 w-4 mr-2" />
-                    Setup SharePoint Integration
-                  </Button>
-                </div>
+                {!isEditingSharePoint && !sharePointForm.isEnabled ? (
+                  <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
+                    <Cloud className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2">Connect to SharePoint</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Sync your documents with Microsoft SharePoint for better collaboration and storage.
+                    </p>
+                    <Button onClick={() => setIsEditingSharePoint(true)}>
+                      <Cloud className="h-4 w-4 mr-2" />
+                      Setup SharePoint Integration
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* SharePoint Configuration Form */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="tenantId">Tenant ID</Label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="tenantId"
+                            value={sharePointForm.tenantId}
+                            onChange={(e) => setSharePointForm(prev => ({ ...prev, tenantId: e.target.value }))}
+                            placeholder="Enter your Azure AD tenant ID"
+                            disabled={!isEditingSharePoint}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="clientId">Client (Application) ID</Label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="clientId"
+                            value={sharePointForm.clientId}
+                            onChange={(e) => setSharePointForm(prev => ({ ...prev, clientId: e.target.value }))}
+                            placeholder="Enter your app client ID"
+                            disabled={!isEditingSharePoint}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
 
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="clientSecret">Client Secret</Label>
+                        <div className="relative">
+                          <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="clientSecret"
+                            type={showClientSecret ? "text" : "password"}
+                            value={sharePointForm.clientSecret}
+                            onChange={(e) => setSharePointForm(prev => ({ ...prev, clientSecret: e.target.value }))}
+                            placeholder="Enter your app client secret"
+                            disabled={!isEditingSharePoint}
+                            className="pl-10 pr-10"
+                          />
+                          {isEditingSharePoint && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                              onClick={() => setShowClientSecret(!showClientSecret)}
+                            >
+                              {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="siteUrl">SharePoint Site URL</Label>
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="siteUrl"
+                            value={sharePointForm.siteUrl}
+                            onChange={(e) => setSharePointForm(prev => ({ ...prev, siteUrl: e.target.value }))}
+                            placeholder="https://yourcompany.sharepoint.com/sites/sitename"
+                            disabled={!isEditingSharePoint}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="documentLibrary">Document Library Name</Label>
+                        <div className="relative">
+                          <FileText className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="documentLibrary"
+                            value={sharePointForm.documentLibrary}
+                            onChange={(e) => setSharePointForm(prev => ({ ...prev, documentLibrary: e.target.value }))}
+                            placeholder="Documents"
+                            disabled={!isEditingSharePoint}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Connection Status and Actions */}
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${sharePointForm.isEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        <div>
+                          <p className="font-medium">
+                            {sharePointForm.isEnabled ? 'SharePoint Connected' : 'SharePoint Disconnected'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {sharePointForm.isEnabled 
+                              ? 'Documents are being synced automatically' 
+                              : 'Configure settings to enable sync'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      {sharePointForm.isEnabled && !isEditingSharePoint && (
+                        <Button variant="outline" size="sm">
+                          <Zap className="h-4 w-4 mr-2" />
+                          Test Connection
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      {isEditingSharePoint ? (
+                        <>
+                          <Button 
+                            onClick={() => {
+                              // Save SharePoint settings
+                              setSharePointForm(prev => ({ ...prev, isEnabled: true }));
+                              setIsEditingSharePoint(false);
+                              toast({
+                                title: "SharePoint settings saved",
+                                description: "Your SharePoint integration has been configured successfully.",
+                              });
+                            }}
+                            disabled={!sharePointForm.tenantId || !sharePointForm.clientId || !sharePointForm.clientSecret || !sharePointForm.siteUrl}
+                          >
+                            <Check className="h-4 w-4 mr-2" />
+                            Save Configuration
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setIsEditingSharePoint(false)}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </>
+                      ) : sharePointForm.isEnabled ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setIsEditingSharePoint(true)}
+                          >
+                            <SettingsIcon className="h-4 w-4 mr-2" />
+                            Edit Configuration
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              setSharePointForm({
+                                tenantId: "",
+                                clientId: "",
+                                clientSecret: "",
+                                siteUrl: "",
+                                documentLibrary: "",
+                                isEnabled: false,
+                              });
+                              toast({
+                                title: "SharePoint disconnected",
+                                description: "SharePoint integration has been disabled.",
+                              });
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Disconnect
+                          </Button>
+                        </>
+                      ) : (
+                        <Button onClick={() => setIsEditingSharePoint(true)}>
+                          <Cloud className="h-4 w-4 mr-2" />
+                          Configure SharePoint
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Information Panel */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <Info className="h-4 w-4 text-blue-600 mt-0.5" />
                     <div className="text-sm text-blue-800">
-                      <p className="font-medium mb-1">SharePoint Integration Benefits</p>
+                      <p className="font-medium mb-2">SharePoint Integration Requirements</p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li>Automatic document synchronization</li>
-                        <li>Version control and backup</li>
-                        <li>Collaborative editing capabilities</li>
-                        <li>Enterprise-grade security</li>
+                        <li>Azure AD application with SharePoint permissions</li>
+                        <li>Sites.ReadWrite.All application permission</li>
+                        <li>Admin consent for the application</li>
+                        <li>Valid SharePoint site URL and document library</li>
                       </ul>
+                      <p className="mt-2 text-xs">
+                        <a href="#" className="text-blue-600 underline">Learn how to set up SharePoint integration</a>
+                      </p>
                     </div>
                   </div>
                 </div>
+
+                {/* Sync Settings (when connected) */}
+                {sharePointForm.isEnabled && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        Sync Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Auto-sync Documents</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Automatically sync new documents to SharePoint
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm">
+                          Enabled
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Sync Frequency</Label>
+                          <p className="text-sm text-muted-foreground">
+                            How often to check for document changes
+                          </p>
+                        </div>
+                        <select className="h-8 border border-gray-200 rounded-md px-2 text-sm">
+                          <option value="realtime">Real-time</option>
+                          <option value="5min">Every 5 minutes</option>
+                          <option value="15min">Every 15 minutes</option>
+                          <option value="1hour">Every hour</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Version Control</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Keep document version history in SharePoint
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm">
+                          Enabled
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
 
