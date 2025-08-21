@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ import {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,13 +50,21 @@ export default function RegisterPage() {
 
     // Basic validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.organizationName) {
-      alert("Please fill in all required fields");
+      toast({
+        variant: "destructive",
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+      });
       setIsLoading(false);
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
+      toast({
+        variant: "destructive",
+        title: "Password mismatch",
+        description: "Passwords don't match. Please try again.",
+      });
       setIsLoading(false);
       return;
     }
@@ -84,13 +94,20 @@ export default function RegisterPage() {
       }
       
       // Show success message
-    //   alert(`Registration successful! Organization "${formData.organizationName}" has been created and you are now the owner.`);
+      toast({
+        title: "Registration successful!",
+        description: `Organization "${formData.organizationName}" has been created and you are now the owner.`,
+      });
       
       // Redirect to dashboard after successful registration (token is set in cookie)
       router.push('/');
     } catch (error) {
       console.error('Registration failed:', error);
-      alert(error instanceof Error ? error.message : 'Registration failed. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : 'Registration failed. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }

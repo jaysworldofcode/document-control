@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +41,11 @@ export default function LoginPage() {
 
     // Basic validation
     if (!formData.email || !formData.password) {
-      alert("Please fill in all fields");
+      toast({
+        variant: "destructive",
+        title: "Missing fields",
+        description: "Please fill in all fields",
+      });
       setIsLoading(false);
       return;
     }
@@ -72,7 +78,11 @@ export default function LoginPage() {
       router.push('/');
     } catch (error) {
       console.error('Login failed:', error);
-      alert(error instanceof Error ? error.message : 'Login failed. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error instanceof Error ? error.message : 'Login failed. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }

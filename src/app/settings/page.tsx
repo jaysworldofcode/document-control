@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,6 +79,7 @@ interface OrganizationMember {
 
 export default function SettingsPage() {
   const { user, logout, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,20 +189,35 @@ export default function SettingsPage() {
       if (response.ok) {
         await refreshUser(); // Refresh user data from auth context
         setIsEditingProfile(false);
-        alert('Profile updated successfully!');
+        toast({
+          title: "Profile updated",
+          description: "Your profile information has been updated successfully.",
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to update profile');
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error.error || 'Failed to update profile',
+        });
       }
     } catch (error) {
       console.error('Profile update error:', error);
-      alert('Failed to update profile');
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "An unexpected error occurred while updating your profile.",
+      });
     }
   };
 
   const handlePasswordChange = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert("New passwords don't match!");
+      toast({
+        variant: "destructive",
+        title: "Password mismatch",
+        description: "New passwords don't match. Please try again.",
+      });
       return;
     }
 
@@ -223,14 +240,25 @@ export default function SettingsPage() {
           newPassword: "",
           confirmPassword: "",
         });
-        alert('Password changed successfully!');
+        toast({
+          title: "Password changed",
+          description: "Your password has been updated successfully.",
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to change password');
+        toast({
+          variant: "destructive",
+          title: "Password change failed",
+          description: error.error || 'Failed to change password',
+        });
       }
     } catch (error) {
       console.error('Password change error:', error);
-      alert('Failed to change password');
+      toast({
+        variant: "destructive",
+        title: "Password change failed",
+        description: "An unexpected error occurred while changing your password.",
+      });
     }
   };
 
@@ -274,14 +302,25 @@ export default function SettingsPage() {
         const data = await response.json();
         setOrganization(data.organization);
         setIsEditingOrganization(false);
-        alert('Organization updated successfully!');
+        toast({
+          title: "Organization updated",
+          description: "Your organization details have been updated successfully.",
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to update organization');
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error.error || 'Failed to update organization',
+        });
       }
     } catch (error) {
       console.error('Organization update error:', error);
-      alert('Failed to update organization');
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "An unexpected error occurred while updating your organization.",
+      });
     }
   };
 
