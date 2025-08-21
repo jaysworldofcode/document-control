@@ -28,6 +28,9 @@ export default function RegisterPage() {
     lastName: "",
     email: "",
     department: "",
+    organizationName: "",
+    organizationIndustry: "",
+    organizationSize: "",
     password: "",
     confirmPassword: "",
   });
@@ -55,7 +58,23 @@ export default function RegisterPage() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // In a real app, you would send data to your backend
-      console.log('Registration data:', formData);
+      console.log('Registration data:', {
+        user: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          department: formData.department,
+        },
+        organization: {
+          name: formData.organizationName,
+          industry: formData.organizationIndustry,
+          size: formData.organizationSize,
+          owner: formData.email,
+        }
+      });
+      
+      // Show success message
+      alert(`Registration successful! Organization "${formData.organizationName}" has been created and you are now the owner.`);
       
       // Redirect to login page after successful registration
       router.push('/login');
@@ -175,6 +194,71 @@ export default function RegisterPage() {
                 </div>
               </div>
 
+              {/* Organization Section */}
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-blue-900">Organization Information</h3>
+                </div>
+                <p className="text-sm text-blue-700 mb-3">
+                  You will be the owner of this organization and can manage its settings.
+                </p>
+
+                {/* Organization Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="organizationName" className="text-sm font-medium text-gray-700">
+                    Organization Name *
+                  </Label>
+                  <Input
+                    id="organizationName"
+                    name="organizationName"
+                    type="text"
+                    required
+                    value={formData.organizationName}
+                    onChange={(e) => handleInputChange('organizationName', e.target.value)}
+                    placeholder="Your organization name"
+                    className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Organization Industry */}
+                <div className="space-y-2">
+                  <Label htmlFor="organizationIndustry" className="text-sm font-medium text-gray-700">
+                    Industry
+                  </Label>
+                  <Input
+                    id="organizationIndustry"
+                    name="organizationIndustry"
+                    type="text"
+                    value={formData.organizationIndustry}
+                    onChange={(e) => handleInputChange('organizationIndustry', e.target.value)}
+                    placeholder="e.g., Technology, Healthcare, Finance"
+                    className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Organization Size */}
+                <div className="space-y-2">
+                  <Label htmlFor="organizationSize" className="text-sm font-medium text-gray-700">
+                    Organization Size
+                  </Label>
+                  <select
+                    id="organizationSize"
+                    name="organizationSize"
+                    value={formData.organizationSize}
+                    onChange={(e) => handleInputChange('organizationSize', e.target.value)}
+                    className="w-full h-11 border border-gray-200 rounded-md px-3 focus:border-blue-500 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select organization size</option>
+                    <option value="1-10">1-10 employees</option>
+                    <option value="11-50">11-50 employees</option>
+                    <option value="51-200">51-200 employees</option>
+                    <option value="201-1000">201-1000 employees</option>
+                    <option value="1000+">1000+ employees</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Password Field */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
@@ -239,7 +323,7 @@ export default function RegisterPage() {
               <Button
                 type="submit"
                 className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg mt-6"
-                disabled={isLoading || !formData.email || !formData.password || !formData.firstName || !formData.lastName}
+                disabled={isLoading || !formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.organizationName}
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
