@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,24 +50,6 @@ import {
   FileText
 } from "lucide-react";
 
-// Mock user data
-const mockUser = {
-  id: "user_1",
-  firstName: "John",
-  lastName: "Doe",
-  email: "john.doe@techcorp.com",
-  phone: "+1 (555) 123-4567",
-  department: "Engineering",
-  role: "Senior Engineer",
-  avatar: "/api/placeholder/100/100",
-  joinDate: "2023-01-15",
-  lastLogin: "2024-08-19T10:30:00Z",
-  permissions: ["read", "write", "approve"],
-  preferences: {
-    emailNotifications: true,
-  }
-};
-
 type FeedbackType = "bug" | "feature" | "general";
 
 interface FeedbackData {
@@ -75,8 +58,29 @@ interface FeedbackData {
   message: string;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  industry: string | null;
+  size: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OrganizationMember {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at: string;
+}
+
 export default function SettingsPage() {
-  const [user, setUser] = useState(mockUser);
+  const { user, logout, refreshUser } = useAuth();
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -88,11 +92,11 @@ export default function SettingsPage() {
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone,
-    department: user.department,
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
+    phone: "",
+    department: "",
   });
 
   // Password form state
@@ -111,33 +115,123 @@ export default function SettingsPage() {
 
   // Organization form state
   const [organizationForm, setOrganizationForm] = useState({
-    name: "TechCorp Solutions",
-    industry: "Technology",
-    size: "51-200",
+    name: organization?.name || "",
+    industry: organization?.industry || "",
+    size: organization?.size || "",
   });
 
-  const handleProfileUpdate = () => {
-    setUser(prev => ({
-      ...prev,
-      ...profileForm
-    }));
-    setIsEditingProfile(false);
-    // In a real app, this would call an API to update the profile
-    console.log("Profile updated:", profileForm);
+  // Update form when user or organization data changes
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: "",
+        department: "",
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (organization) {
+      setOrganizationForm({
+        name: organization.name,
+        industry: organization.industry || "",
+        size: organization.size || "",
+      });
+    }
+  }, [organization]);
+
+  // Fetch organization data
+  useEffect(() => {
+    const fetchOrganizationData = async () => {
+      if (!user?.organizationId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/organizations', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setOrganization(data.organization);
+          setMembers(data.members);
+        }
+      } catch (error) {
+        console.error('Failed to fetch organization data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchOrganizationData();
+    }
+  }, [user]);
+
+  const handleProfileUpdate = async () => {
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(profileForm),
+      });
+
+      if (response.ok) {
+        await refreshUser(); // Refresh user data from auth context
+        setIsEditingProfile(false);
+        alert('Profile updated successfully!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Profile update error:', error);
+      alert('Failed to update profile');
+    }
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       alert("New passwords don't match!");
       return;
     }
-    // In a real app, this would call an API to change the password
-    console.log("Password changed");
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+
+    try {
+      const response = await fetch('/api/user/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+
+      if (response.ok) {
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        alert('Password changed successfully!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Password change error:', error);
+      alert('Failed to change password');
+    }
   };
 
   const handleSendFeedback = () => {
@@ -155,18 +249,40 @@ export default function SettingsPage() {
     }, 2000);
   };
 
-  const handleLogout = () => {
-    // In a real app, this would clear authentication tokens and redirect
-    console.log("User logged out");
-    setIsLogoutDialogOpen(false);
-    // window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      await logout(); // Use logout from auth context
+      setIsLogoutDialogOpen(false);
+      // Auth context handles the redirect
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
-  const handleOrganizationUpdate = () => {
-    // In a real app, this would call an API to update organization details
-    console.log("Organization updated:", organizationForm);
-    setIsEditingOrganization(false);
-    // Show success message or handle API response
+  const handleOrganizationUpdate = async () => {
+    try {
+      const response = await fetch('/api/organizations', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(organizationForm),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOrganization(data.organization);
+        setIsEditingOrganization(false);
+        alert('Organization updated successfully!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update organization');
+      }
+    } catch (error) {
+      console.error('Organization update error:', error);
+      alert('Failed to update organization');
+    }
   };
 
   const feedbackTypeConfig = {
@@ -187,6 +303,17 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="ml-2">Loading...</span>
+          </div>
+        ) : !user ? (
+          <div className="text-center p-8">
+            <p className="text-muted-foreground">Please log in to access settings.</p>
+          </div>
+        ) : (
 
         <Tabs defaultValue="profile" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
@@ -229,17 +356,19 @@ export default function SettingsPage() {
                       <User className="h-10 w-10 text-primary" />
                     </div>
                     <AvatarUpload 
-                      currentAvatar={user.avatar}
+                      currentAvatar={"/api/placeholder/100/100"}
                       onAvatarChange={(newAvatar) => {
-                        setUser(prev => ({ ...prev, avatar: newAvatar }));
+                        console.log('Avatar changed:', newAvatar);
                       }}
                     />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold">{user.firstName} {user.lastName}</h3>
-                    <p className="text-muted-foreground">{user.role}</p>
+                    <h3 className="text-xl font-semibold">
+                      {user?.firstName} {user?.lastName}
+                    </h3>
+                    <p className="text-muted-foreground">{user?.role}</p>
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline">{user.department}</Badge>
+                      <Badge variant="outline">{user?.role}</Badge>
                       <Badge variant="secondary">Active</Badge>
                     </div>
                   </div>
@@ -317,11 +446,11 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Join Date</Label>
+                    <Label>Member Since</Label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        value={new Date(user.joinDate).toLocaleDateString()}
+                        value="N/A"
                         disabled
                         className="pl-10"
                       />
@@ -356,27 +485,21 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label className="text-sm font-medium">User ID</Label>
-                    <p className="text-sm text-muted-foreground font-mono">{user.id}</p>
+                    <p className="text-sm text-muted-foreground font-mono">{user?.id}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Last Login</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(user.lastLogin).toLocaleString()}
-                    </p>
+                    <Label className="text-sm font-medium">Email</Label>
+                    <p className="text-sm text-muted-foreground">{user?.email}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Role</Label>
-                    <p className="text-sm text-muted-foreground">{user.role}</p>
+                    <p className="text-sm text-muted-foreground">{user?.role}</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Permissions</Label>
-                    <div className="flex gap-1 mt-1">
-                      {user.permissions.map((permission) => (
-                        <Badge key={permission} variant="outline" className="text-xs">
-                          {permission}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Label className="text-sm font-medium">Organization</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization?.name || 'No organization'}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -494,7 +617,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">Receive email notifications for important updates</p>
                   </div>
                   <Button variant="outline" size="sm">
-                    {user.preferences.emailNotifications ? "Enabled" : "Disabled"}
+                    Enabled
                   </Button>
                 </div>
               </CardContent>
@@ -519,11 +642,17 @@ export default function SettingsPage() {
                   <div className="flex-1">
                     {!isEditingOrganization ? (
                       <>
-                        <h3 className="text-xl font-semibold">{organizationForm.name}</h3>
-                        <p className="text-muted-foreground">Technology Industry</p>
-                        <p className="text-sm text-muted-foreground mt-1">50-200 employees</p>
+                        <h3 className="text-xl font-semibold">
+                          {organization?.name || 'Loading...'}
+                        </h3>
+                        <p className="text-muted-foreground">
+                          {organization?.industry || 'No industry specified'}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {organization?.size ? `${organization.size} organization` : 'Size not specified'}
+                        </p>
                         <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="default">Owner</Badge>
+                          <Badge variant="default">{user?.role}</Badge>
                           <Badge variant="secondary">Active</Badge>
                         </div>
                       </>
@@ -542,8 +671,10 @@ export default function SettingsPage() {
                           <Label htmlFor="orgIndustry">Industry</Label>
                           <select
                             className="w-full h-10 border border-gray-200 rounded-md px-3 focus:border-blue-500 focus:ring-blue-500 bg-white"
-                            value="technology"
+                            value={organizationForm.industry}
+                            onChange={(e) => setOrganizationForm(prev => ({ ...prev, industry: e.target.value }))}
                           >
+                            <option value="">Select industry</option>
                             <option value="technology">Technology</option>
                             <option value="healthcare">Healthcare</option>
                             <option value="finance">Finance</option>
@@ -556,13 +687,15 @@ export default function SettingsPage() {
                           <Label htmlFor="orgSize">Organization Size</Label>
                           <select
                             className="w-full h-10 border border-gray-200 rounded-md px-3 focus:border-blue-500 focus:ring-blue-500 bg-white"
-                            value="51-200"
+                            value={organizationForm.size}
+                            onChange={(e) => setOrganizationForm(prev => ({ ...prev, size: e.target.value }))}
                           >
-                            <option value="1-10">1-10 employees</option>
-                            <option value="11-50">11-50 employees</option>
-                            <option value="51-200">51-200 employees</option>
-                            <option value="201-1000">201-1000 employees</option>
-                            <option value="1000+">1000+ employees</option>
+                            <option value="">Select size</option>
+                            <option value="startup">Startup (1-10 employees)</option>
+                            <option value="small">Small (11-50 employees)</option>
+                            <option value="medium">Medium (51-200 employees)</option>
+                            <option value="large">Large (201-1000 employees)</option>
+                            <option value="enterprise">Enterprise (1000+ employees)</option>
                           </select>
                         </div>
                       </div>
@@ -606,12 +739,12 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center p-4 border rounded-lg">
                     <Users className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                    <p className="text-2xl font-bold">12</p>
+                    <p className="text-2xl font-bold">{members.length}</p>
                     <p className="text-sm text-muted-foreground">Team Members</p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
                     <FileText className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                    <p className="text-2xl font-bold">248</p>
+                    <p className="text-2xl font-bold">-</p>
                     <p className="text-sm text-muted-foreground">Documents</p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
@@ -677,7 +810,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      12 team members in your organization
+                      {members.length} team member{members.length !== 1 ? 's' : ''} in your organization
                     </p>
                     <Button variant="outline" size="sm">
                       <Users className="h-4 w-4 mr-2" />
@@ -706,10 +839,12 @@ export default function SettingsPage() {
                         </div>
                         <div>
                           <p className="font-medium">Team Members</p>
-                          <p className="text-sm text-muted-foreground">11 active members</p>
+                          <p className="text-sm text-muted-foreground">
+                            {Math.max(0, members.length - 1)} other member{Math.max(0, members.length - 1) !== 1 ? 's' : ''}
+                          </p>
                         </div>
                       </div>
-                      <Badge variant="outline">11 Users</Badge>
+                      <Badge variant="outline">{Math.max(0, members.length - 1)} Users</Badge>
                     </div>
                   </div>
                 </div>
@@ -909,6 +1044,7 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+        )}
       </div>
     </AppLayout>
   );
