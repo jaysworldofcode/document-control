@@ -47,39 +47,50 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     // Basic validation
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.organizationName) {
+      alert("Please fill in all required fields");
+      setIsLoading(false);
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords don't match!");
       setIsLoading(false);
       return;
     }
 
-    // Simulate registration API call
+    // Call registration API
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, you would send data to your backend
-      console.log('Registration data:', {
-        user: {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          department: formData.department,
-        },
-        organization: {
-          name: formData.organizationName,
+          password: formData.password,
+          organizationName: formData.organizationName,
           industry: formData.organizationIndustry,
-          size: formData.organizationSize,
-          owner: formData.email,
-        }
+          organizationSize: formData.organizationSize,
+        }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
       
       // Show success message
-      alert(`Registration successful! Organization "${formData.organizationName}" has been created and you are now the owner.`);
+    //   alert(`Registration successful! Organization "${formData.organizationName}" has been created and you are now the owner.`);
       
-      // Redirect to login page after successful registration
-      router.push('/login');
+      // Redirect to dashboard after successful registration (token is set in cookie)
+      router.push('/');
     } catch (error) {
       console.error('Registration failed:', error);
+      alert(error instanceof Error ? error.message : 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -250,11 +261,11 @@ export default function RegisterPage() {
                     className="w-full h-11 border border-gray-200 rounded-md px-3 focus:border-blue-500 focus:ring-blue-500 bg-white"
                   >
                     <option value="">Select organization size</option>
-                    <option value="1-10">1-10 employees</option>
-                    <option value="11-50">11-50 employees</option>
-                    <option value="51-200">51-200 employees</option>
-                    <option value="201-1000">201-1000 employees</option>
-                    <option value="1000+">1000+ employees</option>
+                    <option value="startup">Startup (1-10 employees)</option>
+                    <option value="small">Small (11-50 employees)</option>
+                    <option value="medium">Medium (51-200 employees)</option>
+                    <option value="large">Large (201-1000 employees)</option>
+                    <option value="enterprise">Enterprise (1000+ employees)</option>
                   </select>
                 </div>
               </div>

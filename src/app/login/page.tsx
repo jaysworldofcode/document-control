@@ -37,22 +37,42 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate login API call
+    // Basic validation
+    if (!formData.email || !formData.password) {
+      alert("Please fill in all fields");
+      setIsLoading(false);
+      return;
+    }
+
+    // Call login API
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, you would validate credentials with your backend
-      if (formData.email && formData.password) {
-        // Store auth token/session if remember me is checked
-        if (rememberMe) {
-          localStorage.setItem('rememberLogin', 'true');
-        }
-        
-        // Redirect to dashboard
-        router.push('/');
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
       }
+
+      // Store auth preference if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem('rememberLogin', 'true');
+      }
+      
+      // Redirect to dashboard (token is set in cookie)
+      router.push('/');
     } catch (error) {
       console.error('Login failed:', error);
+      alert(error instanceof Error ? error.message : 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
