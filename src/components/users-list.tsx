@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -46,7 +47,8 @@ import {
   Shield,
   ShieldCheck,
   Eye,
-  UserMinus
+  UserMinus,
+  Building
 } from "lucide-react";
 import {
   Table,
@@ -65,7 +67,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,300 +76,365 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Mock data for users
-const mockUsers = [
-  {
-    id: 1,
-    name: "Sarah Wilson",
-    email: "sarah.wilson@company.com",
-    phone: "+1 (555) 123-4567",
-    role: "Project Manager",
-    department: "Engineering",
-    status: "active",
-    avatar: "",
-    joinDate: "2023-01-15",
-    location: "New York, NY",
-    projects: ["Document Management System v2.0", "API Documentation Portal"],
-    permissions: ["read", "write", "admin"],
-    lastActive: "2024-08-19T10:30:00Z"
-  },
-  {
-    id: 2,
-    name: "John Doe",
-    email: "john.doe@company.com",
-    phone: "+1 (555) 234-5678",
-    role: "Senior Developer",
-    department: "Engineering",
-    status: "active",
-    avatar: "",
-    joinDate: "2022-08-20",
-    location: "San Francisco, CA",
-    projects: ["Document Management System v2.0", "Security Enhancement Project"],
-    permissions: ["read", "write"],
-    lastActive: "2024-08-19T09:15:00Z"
-  },
-  {
-    id: 3,
-    name: "Emily Rodriguez",
-    email: "emily.rodriguez@company.com",
-    phone: "+1 (555) 345-6789",
-    role: "Compliance Officer",
-    department: "Legal",
-    status: "active",
-    avatar: "",
-    joinDate: "2023-03-10",
-    location: "Austin, TX",
-    projects: ["Compliance Audit System"],
-    permissions: ["read", "write", "admin"],
-    lastActive: "2024-08-18T16:45:00Z"
-  },
-  {
-    id: 4,
-    name: "David Chen",
-    email: "david.chen@company.com",
-    phone: "+1 (555) 456-7890",
-    role: "Technical Writer",
-    department: "Documentation",
-    status: "inactive",
-    avatar: "",
-    joinDate: "2023-06-05",
-    location: "Seattle, WA",
-    projects: ["API Documentation Portal"],
-    permissions: ["read", "write"],
-    lastActive: "2024-08-10T14:20:00Z"
-  },
-  {
-    id: 5,
-    name: "Lisa Garcia",
-    email: "lisa.garcia@company.com",
-    phone: "+1 (555) 567-8901",
-    role: "QA Engineer",
-    department: "Quality Assurance",
-    status: "active",
-    avatar: "",
-    joinDate: "2022-11-30",
-    location: "Chicago, IL",
-    projects: ["Document Management System v2.0", "Compliance Audit System"],
-    permissions: ["read", "write"],
-    lastActive: "2024-08-19T11:00:00Z"
-  },
-  {
-    id: 6,
-    name: "Alex Kumar",
-    email: "alex.kumar@company.com",
-    phone: "+1 (555) 678-9012",
-    role: "Security Analyst",
-    department: "IT Security",
-    status: "active",
-    avatar: "",
-    joinDate: "2023-09-12",
-    location: "Boston, MA",
-    projects: ["Security Enhancement Project"],
-    permissions: ["read", "write", "admin"],
-    lastActive: "2024-08-19T08:30:00Z"
-  }
-];
-
-// Mock projects for assignment
-const mockProjects = [
-  { id: 1, name: "Document Management System v2.0", status: "active" },
-  { id: 2, name: "API Documentation Portal", status: "active" },
-  { id: 3, name: "Compliance Audit System", status: "pending" },
-  { id: 4, name: "Security Enhancement Project", status: "active" },
-  { id: 5, name: "Mobile App Integration", status: "planning" }
-];
-
-const statusConfig = {
-  active: { label: "Active", variant: "success" as const },
-  inactive: { label: "Inactive", variant: "secondary" as const },
-};
-
-const roleColors = {
-  "Project Manager": "bg-blue-100 text-blue-800",
-  "Senior Developer": "bg-green-100 text-green-800",
-  "Compliance Officer": "bg-purple-100 text-purple-800",
-  "Technical Writer": "bg-orange-100 text-orange-800",
-  "QA Engineer": "bg-yellow-100 text-yellow-800",
-  "Security Analyst": "bg-red-100 text-red-800",
-};
-
-interface NewUser {
-  name: string;
+// Database user interface
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  name: string; // computed: firstName + ' ' + lastName
   email: string;
-  phone: string;
   role: string;
   department: string;
-  location: string;
-  projects: string[];
-  permissions: string[];
+  status: string;
+  permissions: Record<string, boolean>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  permissions: Record<string, boolean>;
+}
+
+interface NewUser {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role?: string;
+  departmentId?: string;
+  roleId?: string;
+  location?: string;
 }
 
 export function UsersList() {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isViewProfileOpen, setIsViewProfileOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
-  const [isAssignProjectsOpen, setIsAssignProjectsOpen] = useState(false);
   const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [users, setUsers] = useState(mockUsers);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newUser, setNewUser] = useState<NewUser>({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phone: "",
     role: "",
-    department: "",
-    location: "",
-    projects: [],
-    permissions: ["read"]
+    departmentId: "",
+    roleId: "",
+    location: ""
   });
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.role.toLowerCase().includes(searchTerm.toLowerCase());
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.organizationId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Fetch users
+        const usersResponse = await fetch('/api/users', {
+          credentials: 'include',
+        });
+
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          // Map users to include firstName, lastName, and name
+          setUsers(usersData.users.map((u: any) => ({
+            ...u,
+            firstName: u.firstName || u.first_name || u.name?.split(' ')[0] || '',
+            lastName: u.lastName || u.last_name || u.name?.split(' ').slice(1).join(' ') || '',
+            name: (u.firstName || u.first_name || u.name?.split(' ')[0] || '') + ' ' + (u.lastName || u.last_name || u.name?.split(' ').slice(1).join(' ') || ''),
+          })));
+        }
+
+        // Fetch departments
+        const deptResponse = await fetch('/api/departments', {
+          credentials: 'include',
+        });
+
+        if (deptResponse.ok) {
+          const deptData = await deptResponse.json();
+          setDepartments(deptData.departments);
+        }
+
+        // Fetch roles
+        const rolesResponse = await fetch('/api/roles', {
+          credentials: 'include',
+        });
+
+        if (rolesResponse.ok) {
+          const rolesData = await rolesResponse.json();
+          setRoles(rolesData.roles);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load data. Please refresh the page.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchData();
+    }
+  }, [user, toast]);
+
+  const filteredUsers = users.filter(userData => {
+    const matchesSearch = userData.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userData.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userData.role.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter;
-    const matchesDepartment = departmentFilter === "all" || user.department === departmentFilter;
+    const matchesStatus = statusFilter === "all" || userData.status === statusFilter;
+    const matchesDepartment = departmentFilter === "all" || userData.department === departmentFilter;
     
     return matchesSearch && matchesStatus && matchesDepartment;
   });
 
-  const departments = Array.from(new Set(users.map(user => user.department)));
+  const departmentNames = departments.map(dept => dept.name);
 
-  const handleAddUser = () => {
-    // Here you would typically send the data to your API
-    const newUserId = Math.max(...users.map(u => u.id)) + 1;
-    const userToAdd = {
-      id: newUserId,
-      ...newUser,
-      status: "active",
-      avatar: "",
-      joinDate: new Date().toISOString().split('T')[0],
-      lastActive: new Date().toISOString()
-    };
-    
-    setUsers(prev => [...prev, userToAdd]);
-    console.log("Adding user:", userToAdd);
-    setIsAddUserOpen(false);
-    resetNewUserForm();
-  };
+  const handleAddUser = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          email: newUser.email,
+          phone: newUser.phone,
+          role: newUser.role || 'member',
+          departmentId: newUser.departmentId || null,
+          roleId: newUser.roleId || null,
+          location: newUser.location,
+          sendCredentials: true
+        }),
+      });
 
-  const handleProjectToggle = (projectName: string) => {
-    setNewUser(prev => ({
-      ...prev,
-      projects: prev.projects.includes(projectName)
-        ? prev.projects.filter(p => p !== projectName)
-        : [...prev.projects, projectName]
-    }));
-  };
-
-  const handlePermissionToggle = (permission: string) => {
-    setNewUser(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permission)
-        ? prev.permissions.filter(p => p !== permission)
-        : [...prev.permissions, permission]
-    }));
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(prev => [...prev, data.user]);
+        
+        // Show success message with credentials
+        if (data.user.tempCredentials) {
+          toast({
+            title: "User created successfully",
+            description: `Login credentials: ${data.user.tempCredentials.username} / ${data.user.tempCredentials.password}`,
+          });
+        } else {
+          toast({
+            title: "User created successfully",
+            description: "The user has been added to your organization.",
+          });
+        }
+        
+        setIsAddUserOpen(false);
+        resetNewUserForm();
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Creation failed",
+          description: error.error || 'Failed to create user',
+        });
+      }
+    } catch (error) {
+      console.error('User creation error:', error);
+      toast({
+        variant: "destructive",
+        title: "Creation failed",
+        description: "An unexpected error occurred while creating the user.",
+      });
+    }
   };
 
   // Action handlers
-  const handleViewProfile = (user: any) => {
-    setSelectedUser(user);
+  const handleViewProfile = (userData: User) => {
+    setSelectedUser(userData);
     setIsViewProfileOpen(true);
   };
 
-  const handleEditUser = (user: any) => {
-    setSelectedUser(user);
-    setNewUser({
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      department: user.department,
-      location: user.location,
-      projects: user.projects,
-      permissions: user.permissions
-    });
+  const openEditDialog = (userData: User) => {
+    setSelectedUser(userData);
+    setEditingUser(userData);
     setIsEditUserOpen(true);
   };
 
-  const handleAssignProjects = (user: any) => {
-    setSelectedUser(user);
-    setIsAssignProjectsOpen(true);
+  const handleEditUser = async () => {
+    if (!editingUser) return;
+    
+    try {
+      const response = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: editingUser.firstName,
+          lastName: editingUser.lastName,
+          email: editingUser.email,
+          department: editingUser.department,
+          role: editingUser.role,
+          status: editingUser.status,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+
+      // Update the users list
+      setUsers(users.map(user => 
+        user.id === editingUser.id ? editingUser : user
+      ));
+      
+      setIsEditUserOpen(false);
+      setEditingUser(null);
+      
+      toast({
+        title: "Success",
+        description: "User updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleToggleUserStatus = (userId: number) => {
-    setUsers(prev => prev.map(user => 
-      user.id === userId 
-        ? { ...user, status: user.status === "active" ? "inactive" : "active" }
-        : user
-    ));
-  };
-
-  const handleDeleteUser = (user: any) => {
-    setSelectedUser(user);
+  const handleDeleteUser = (userData: User) => {
+    setSelectedUser(userData);
     setIsDeleteUserOpen(true);
   };
 
-  const confirmDeleteUser = () => {
-    if (selectedUser) {
-      setUsers(prev => prev.filter(user => user.id !== selectedUser.id));
+  const confirmDeleteUser = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const response = await fetch(`/api/users/${selectedUser.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+        toast({
+          title: "User deleted",
+          description: "The user has been deleted successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Deletion failed",
+          description: error.error || 'Failed to delete user',
+        });
+      }
+    } catch (error) {
+      console.error('User deletion error:', error);
+      toast({
+        variant: "destructive",
+        title: "Deletion failed",
+        description: "An unexpected error occurred while deleting the user.",
+      });
+    } finally {
       setIsDeleteUserOpen(false);
       setSelectedUser(null);
     }
   };
 
-  const handleUpdateUser = () => {
-    if (selectedUser) {
-      setUsers(prev => prev.map(user => 
-        user.id === selectedUser.id 
-          ? { 
-              ...user, 
-              name: newUser.name,
-              email: newUser.email,
-              phone: newUser.phone,
-              role: newUser.role,
-              department: newUser.department,
-              location: newUser.location,
-              projects: newUser.projects,
-              permissions: newUser.permissions
-            }
-          : user
-      ));
-      setIsEditUserOpen(false);
-      setSelectedUser(null);
-      resetNewUserForm();
-    }
-  };
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
 
-  const handleUpdateUserProjects = () => {
-    if (selectedUser) {
-      setUsers(prev => prev.map(user => 
-        user.id === selectedUser.id 
-          ? { ...user, projects: newUser.projects }
-          : user
-      ));
-      setIsAssignProjectsOpen(false);
-      setSelectedUser(null);
-      resetNewUserForm();
+    try {
+      const response = await fetch(`/api/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          email: newUser.email,
+          phone: newUser.phone,
+          role: newUser.role,
+          departmentId: newUser.departmentId || null,
+          roleId: newUser.roleId || null,
+          location: newUser.location
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(prev => prev.map(u => 
+          u.id === selectedUser.id ? data.user : u
+        ));
+        toast({
+          title: "User updated",
+          description: "The user has been updated successfully.",
+        });
+        setIsEditUserOpen(false);
+        setSelectedUser(null);
+        resetNewUserForm();
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error.error || 'Failed to update user',
+        });
+      }
+    } catch (error) {
+      console.error('User update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "An unexpected error occurred while updating the user.",
+      });
     }
   };
 
   const resetNewUserForm = () => {
     setNewUser({
-      name: "",
+      firstName: "",
+      lastName: "",
       email: "",
       phone: "",
       role: "",
-      department: "",
-      location: "",
-      projects: [],
-      permissions: ["read"]
+      departmentId: "",
+      roleId: "",
+      location: ""
     });
   };
 
@@ -376,18 +442,36 @@ export function UsersList() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  const formatLastActive = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+  // Helper to get full name from user object
+  const getFullName = (user: User) => {
+    if (user.firstName || user.lastName) {
+      return `${user.firstName} ${user.lastName}`.trim();
+    }
+    return user.name;
   };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p>Please log in to access this page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -418,14 +502,26 @@ export function UsersList() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="firstName">First Name</Label>
                     <Input
-                      id="name"
-                      value={newUser.name}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="John Doe"
+                      id="firstName"
+                      value={newUser.firstName}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, firstName: e.target.value }))}
+                      placeholder="John"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      value={newUser.lastName}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, lastName: e.target.value }))}
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -436,11 +532,8 @@ export function UsersList() {
                       placeholder="john.doe@company.com"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">Phone (Optional)</Label>
                     <Input
                       id="phone"
                       value={newUser.phone}
@@ -448,87 +541,51 @@ export function UsersList() {
                       placeholder="+1 (555) 123-4567"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      value={newUser.location}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="New York, NY"
-                    />
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select value={newUser.role} onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Project Manager">Project Manager</SelectItem>
-                        <SelectItem value="Senior Developer">Senior Developer</SelectItem>
-                        <SelectItem value="Developer">Developer</SelectItem>
-                        <SelectItem value="QA Engineer">QA Engineer</SelectItem>
-                        <SelectItem value="Technical Writer">Technical Writer</SelectItem>
-                        <SelectItem value="Security Analyst">Security Analyst</SelectItem>
-                        <SelectItem value="Compliance Officer">Compliance Officer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select value={newUser.department} onValueChange={(value) => setNewUser(prev => ({ ...prev, department: value }))}>
+                    <Select value={newUser.departmentId} onValueChange={(value) => setNewUser(prev => ({ ...prev, departmentId: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Engineering">Engineering</SelectItem>
-                        <SelectItem value="Documentation">Documentation</SelectItem>
-                        <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
-                        <SelectItem value="IT Security">IT Security</SelectItem>
-                        <SelectItem value="Legal">Legal</SelectItem>
-                        <SelectItem value="Operations">Operations</SelectItem>
+                        <SelectItem value="none">No department</SelectItem>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Custom Role (Optional)</Label>
+                    <Select value={newUser.roleId} onValueChange={(value) => setNewUser(prev => ({ ...prev, roleId: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a custom role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No custom role</SelectItem>
+                        {roles.filter(role => !role.permissions.admin).map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label>Project Assignments</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {mockProjects.map((project) => (
-                      <div key={project.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`project-${project.id}`}
-                          checked={newUser.projects.includes(project.name)}
-                          onCheckedChange={() => handleProjectToggle(project.name)}
-                        />
-                        <Label htmlFor={`project-${project.id}`} className="text-sm">
-                          {project.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Permissions</Label>
-                  <div className="flex gap-4">
-                    {["read", "write", "admin"].map((permission) => (
-                      <div key={permission} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`permission-${permission}`}
-                          checked={newUser.permissions.includes(permission)}
-                          onCheckedChange={() => handlePermissionToggle(permission)}
-                        />
-                        <Label htmlFor={`permission-${permission}`} className="text-sm capitalize">
-                          {permission}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location (Optional)</Label>
+                  <Input
+                    id="location"
+                    value={newUser.location}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="New York, NY"
+                  />
                 </div>
               </div>
 
@@ -536,7 +593,10 @@ export function UsersList() {
                 <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddUser}>
+                <Button 
+                  onClick={handleAddUser}
+                  disabled={!newUser.firstName.trim() || !newUser.lastName.trim() || !newUser.email.trim()}
+                >
                   Add User
                 </Button>
               </DialogFooter>
@@ -592,7 +652,7 @@ export function UsersList() {
               <DropdownMenuItem onClick={() => setDepartmentFilter("all")}>
                 All Departments
               </DropdownMenuItem>
-              {departments.map((dept) => (
+              {departmentNames.map((dept) => (
                 <DropdownMenuItem key={dept} onClick={() => setDepartmentFilter(dept)}>
                   {dept}
                 </DropdownMenuItem>
@@ -602,85 +662,69 @@ export function UsersList() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Showing {filteredUsers.length} of {mockUsers.length} users
+          Showing {filteredUsers.length} of {users.length} users
         </div>
       </div>
 
       {/* Users List */}
       <div className="space-y-4">
-        {filteredUsers.map((user) => (
+        {filteredUsers.map((userData) => (
           <div
-            key={user.id}
+            key={userData.id}
             className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm hover:shadow-md transition-shadow"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4 flex-1">
                 <Avatar className="h-12 w-12">
-                  <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {getInitials(user.name)}
+                    {getInitials(userData.name)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg">{user.name}</h3>
-                    <Badge variant={statusConfig[user.status as keyof typeof statusConfig].variant}>
-                      {statusConfig[user.status as keyof typeof statusConfig].label}
+                    <h3 className="font-semibold text-lg">{userData.name}</h3>
+                    <Badge variant={userData.status === 'active' ? 'default' : 'secondary'}>
+                      {userData.status === 'active' ? 'Active' : 'Inactive'}
                     </Badge>
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${roleColors[user.role as keyof typeof roleColors] || "bg-gray-100 text-gray-800"}`}>
-                      {user.role}
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
+                      {userData.role}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
-                      <span>{user.email}</span>
+                      <span>{userData.email}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      <span>{user.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{user.location}</span>
+                      <Building className="h-4 w-4" />
+                      <span>{userData.department}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      <span>Joined {new Date(user.joinDate).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs">Last active {formatLastActive(user.lastActive)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {user.permissions.includes("admin") && (
-                        <span title="Admin">
-                          <ShieldCheck className="h-4 w-4 text-red-500" />
-                        </span>
-                      )}
-                      {user.permissions.includes("write") && (
-                        <span title="Write Access">
-                          <Edit className="h-4 w-4 text-blue-500" />
-                        </span>
-                      )}
-                      <span title="Read Access">
-                        <Eye className="h-4 w-4 text-green-500" />
-                      </span>
+                      <span>Joined {formatDate(userData.created_at)}</span>
                     </div>
                   </div>
 
                   <div className="mt-3">
-                    <div className="text-sm text-muted-foreground mb-1">Projects ({user.projects.length})</div>
+                    <div className="text-sm text-muted-foreground mb-1">Permissions</div>
                     <div className="flex flex-wrap gap-1">
-                      {user.projects.map((project, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
-                        >
-                          {project}
+                      {Object.entries(userData.permissions).map(([permission, enabled]) => 
+                        enabled && (
+                          <span
+                            key={permission}
+                            className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+                          >
+                            {permission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        )
+                      )}
+                      {Object.values(userData.permissions).every(p => !p) && (
+                        <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">
+                          Basic access
                         </span>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -693,30 +737,26 @@ export function UsersList() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleViewProfile(user)}>
+                  <DropdownMenuItem onClick={() => handleViewProfile(userData)}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleEditUser(user)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit User
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleAssignProjects(user)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Assign Projects
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleToggleUserStatus(user.id)}>
-                    <UserMinus className="h-4 w-4 mr-2" />
-                    {user.status === "active" ? "Deactivate" : "Activate"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    className="text-destructive" 
-                    onClick={() => handleDeleteUser(user)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete User
-                  </DropdownMenuItem>
+                  {(user.role === 'owner' || user.role === 'admin') && (
+                    <>
+                      <DropdownMenuItem onClick={() => openEditDialog(userData)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit User
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="text-destructive" 
+                        onClick={() => handleDeleteUser(userData)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete User
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -755,16 +795,15 @@ export function UsersList() {
             <div className="space-y-6">
               <div className="flex items-center space-x-4">
                 <Avatar className="h-16 w-16">
-                  <AvatarImage src={selectedUser.avatar} />
                   <AvatarFallback>
-                    {selectedUser.name.split(' ').map((n: string) => n[0]).join('')}
+                    {getInitials(selectedUser.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
                   <p className="text-muted-foreground">{selectedUser.role}</p>
                   <Badge variant={selectedUser.status === 'active' ? 'default' : 'secondary'}>
-                    {selectedUser.status}
+                    {selectedUser.status === 'active' ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
               </div>
@@ -777,42 +816,36 @@ export function UsersList() {
                   <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Phone</Label>
-                  <p className="text-sm text-muted-foreground">{selectedUser.phone}</p>
-                </div>
-                <div>
                   <Label className="text-sm font-medium">Department</Label>
                   <p className="text-sm text-muted-foreground">{selectedUser.department}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Location</Label>
-                  <p className="text-sm text-muted-foreground">{selectedUser.location}</p>
-                </div>
-                <div>
                   <Label className="text-sm font-medium">Join Date</Label>
-                  <p className="text-sm text-muted-foreground">{selectedUser.joinDate}</p>
+                  <p className="text-sm text-muted-foreground">{formatDate(selectedUser.created_at)}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Last Active</Label>
-                  <p className="text-sm text-muted-foreground">{selectedUser.lastActive}</p>
+                  <Label className="text-sm font-medium">Last Updated</Label>
+                  <p className="text-sm text-muted-foreground">{formatDate(selectedUser.updated_at)}</p>
                 </div>
               </div>
 
-              {selectedUser.projects && selectedUser.projects.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <Label className="text-sm font-medium">Assigned Projects</Label>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedUser.projects.map((project: string, index: number) => (
-                        <Badge key={index} variant="outline">
-                          {project}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+              <Separator />
+
+              <div>
+                <Label className="text-sm font-medium">Permissions</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Object.entries(selectedUser.permissions).map(([permission, enabled]) => 
+                    enabled && (
+                      <Badge key={permission} variant="outline">
+                        {permission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Badge>
+                    )
+                  )}
+                  {Object.values(selectedUser.permissions).every(p => !p) && (
+                    <Badge variant="outline">Basic access</Badge>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -827,102 +860,103 @@ export function UsersList() {
               Update user information and settings.
             </DialogDescription>
           </DialogHeader>
-          {selectedUser && (
+          {editingUser && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Name</Label>
+                  <Label htmlFor="edit-firstName">First Name</Label>
                   <Input
-                    id="edit-name"
-                    value={selectedUser.name}
-                    onChange={(e) => setSelectedUser({
-                      ...selectedUser,
-                      name: e.target.value
+                    id="edit-firstName"
+                    value={editingUser.firstName}
+                    onChange={(e) => setEditingUser({
+                      ...editingUser,
+                      firstName: e.target.value,
+                      name: `${e.target.value} ${editingUser.lastName}`.trim(),
                     })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email</Label>
+                  <Label htmlFor="edit-lastName">Last Name</Label>
                   <Input
-                    id="edit-email"
-                    type="email"
-                    value={selectedUser.email}
-                    onChange={(e) => setSelectedUser({
-                      ...selectedUser,
-                      email: e.target.value
+                    id="edit-lastName"
+                    value={editingUser.lastName}
+                    onChange={(e) => setEditingUser({
+                      ...editingUser,
+                      lastName: e.target.value,
+                      name: `${editingUser.firstName} ${e.target.value}`.trim(),
                     })}
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({
+                    ...editingUser,
+                    email: e.target.value
+                  })}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-role">Role</Label>
                   <Select
-                    value={selectedUser.role}
-                    onValueChange={(value) => setSelectedUser({
-                      ...selectedUser,
+                    value={editingUser.role}
+                    onValueChange={(value) => setEditingUser({
+                      ...editingUser,
                       role: value
                     })}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                      <SelectItem value="Project Manager">Project Manager</SelectItem>
-                      <SelectItem value="Engineer">Engineer</SelectItem>
-                      <SelectItem value="Designer">Designer</SelectItem>
-                      <SelectItem value="Analyst">Analyst</SelectItem>
-                      <SelectItem value="User">User</SelectItem>
+                      {roles.map((role) => (
+                        <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
                   <Select
-                    value={selectedUser.department}
-                    onValueChange={(value) => setSelectedUser({
-                      ...selectedUser,
+                    value={editingUser.department}
+                    onValueChange={(value) => setEditingUser({
+                      ...editingUser,
                       department: value
                     })}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Engineering">Engineering</SelectItem>
-                      <SelectItem value="Design">Design</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="Sales">Sales</SelectItem>
-                      <SelectItem value="HR">HR</SelectItem>
-                      <SelectItem value="Finance">Finance</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Phone</Label>
-                  <Input
-                    id="edit-phone"
-                    value={selectedUser.phone}
-                    onChange={(e) => setSelectedUser({
-                      ...selectedUser,
-                      phone: e.target.value
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-location">Location</Label>
-                  <Input
-                    id="edit-location"
-                    value={selectedUser.location}
-                    onChange={(e) => setSelectedUser({
-                      ...selectedUser,
-                      location: e.target.value
-                    })}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select
+                  value={editingUser.status}
+                  onValueChange={(value) => setEditingUser({
+                    ...editingUser,
+                    status: value as 'active' | 'inactive'
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -930,60 +964,8 @@ export function UsersList() {
             <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser}>
+            <Button onClick={handleEditUser}>
               Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign Projects Dialog */}
-      <Dialog open={isAssignProjectsOpen} onOpenChange={setIsAssignProjectsOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign Projects</DialogTitle>
-            <DialogDescription>
-              Select projects to assign to {selectedUser?.name}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <ScrollArea className="h-48">
-              <div className="space-y-2">
-                {mockProjects.map((project) => (
-                  <div key={project.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`project-${project.id}`}
-                      checked={selectedUser?.projects?.includes(project.name) || false}
-                      onCheckedChange={(checked) => {
-                        if (selectedUser) {
-                          const currentProjects = selectedUser.projects || [];
-                          const newProjects = checked
-                            ? [...currentProjects, project.name]
-                            : currentProjects.filter((p: string) => p !== project.name);
-                          setSelectedUser({
-                            ...selectedUser,
-                            projects: newProjects
-                          });
-                        }
-                      }}
-                    />
-                    <Label htmlFor={`project-${project.id}`} className="text-sm">
-                      {project.name}
-                    </Label>
-                    <Badge variant="outline" className="text-xs">
-                      {project.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAssignProjectsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateUserProjects}>
-              Update Projects
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -996,7 +978,7 @@ export function UsersList() {
             <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete {selectedUser?.name}? This action cannot be undone.
-              The user will be permanently removed from all projects and their access will be revoked.
+              The user will be permanently removed from the system and their access will be revoked.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
