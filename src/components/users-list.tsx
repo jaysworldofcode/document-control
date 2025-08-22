@@ -109,6 +109,7 @@ interface NewUser {
   firstName: string;
   lastName: string;
   email: string;
+  password: string;
   phone?: string;
   role?: string;
   departmentId?: string;
@@ -136,6 +137,7 @@ export function UsersList() {
     firstName: "",
     lastName: "",
     email: "",
+    password: "",
     phone: "",
     role: "",
     departmentId: "",
@@ -229,12 +231,13 @@ export function UsersList() {
           firstName: newUser.firstName,
           lastName: newUser.lastName,
           email: newUser.email,
+          password: newUser.password,
           phone: newUser.phone,
           role: newUser.role || 'member',
           departmentId: newUser.departmentId || null,
           roleId: newUser.roleId || null,
           location: newUser.location,
-          sendCredentials: true
+          sendCredentials: false // Set to false since we're providing a password
         }),
       });
 
@@ -242,16 +245,18 @@ export function UsersList() {
         const data = await response.json();
         setUsers(prev => [...prev, data.user]);
         
-        // Show success message with credentials
+        // Show success message
         if (data.user.tempCredentials) {
+          // Auto-generated credentials
           toast({
             title: "User created successfully",
             description: `Login credentials: ${data.user.tempCredentials.username} / ${data.user.tempCredentials.password}`,
           });
         } else {
+          // User-provided password
           toast({
             title: "User created successfully",
-            description: "The user has been added to your organization.",
+            description: "The user has been added to your organization and can login with their email and the password you set.",
           });
         }
         
@@ -430,6 +435,7 @@ export function UsersList() {
       firstName: "",
       lastName: "",
       email: "",
+      password: "",
       phone: "",
       role: "",
       departmentId: "",
@@ -533,14 +539,25 @@ export function UsersList() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone (Optional)</Label>
+                    <Label htmlFor="password">Password</Label>
                     <Input
-                      id="phone"
-                      value={newUser.phone}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="+1 (555) 123-4567"
+                      id="password"
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter password"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone (Optional)</Label>
+                  <Input
+                    id="phone"
+                    value={newUser.phone}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+1 (555) 123-4567"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -595,7 +612,7 @@ export function UsersList() {
                 </Button>
                 <Button 
                   onClick={handleAddUser}
-                  disabled={!newUser.firstName.trim() || !newUser.lastName.trim() || !newUser.email.trim()}
+                  disabled={!newUser.firstName.trim() || !newUser.lastName.trim() || !newUser.email.trim() || !newUser.password.trim()}
                 >
                   Add User
                 </Button>

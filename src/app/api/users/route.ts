@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
       firstName, 
       lastName, 
       email, 
+      password, // Add password field
       phone, 
       role, 
       departmentId, 
@@ -164,7 +165,9 @@ export async function POST(request: NextRequest) {
 
     // Generate username and password
     const username = generateUsername(email);
-    const tempPassword = generateRandomPassword();
+    
+    // Use provided password or generate a random one
+    const tempPassword = password || generateRandomPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
     // Get default department if not specified
@@ -259,8 +262,8 @@ export async function POST(request: NextRequest) {
       permissions: customRole?.permissions || {},
       created_at: newUser.created_at,
       updated_at: newUser.updated_at,
-      // Include temporary credentials for the response
-      ...(sendCredentials && {
+      // Include temporary credentials only if password was auto-generated
+      ...(!password && sendCredentials && {
         tempCredentials: {
           username,
           password: tempPassword,
