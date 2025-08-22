@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProjectForm } from "@/components/forms/project-form";
 import { Project, ProjectFormData } from "@/types/project.types";
-import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { 
   Plus, 
   Search, 
@@ -28,11 +27,55 @@ import {
   Edit,
   Archive,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from "lucide-react";
 
-// Use the comprehensive mock projects from constants
-const mockProjects = MOCK_PROJECTS;
+// API functions for projects
+const fetchProjects = async (): Promise<Project[]> => {
+  const response = await fetch('/api/projects');
+  if (!response.ok) {
+    throw new Error('Failed to fetch projects');
+  }
+  return response.json();
+};
+
+const createProject = async (projectData: ProjectFormData): Promise<Project> => {
+  const response = await fetch('/api/projects', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(projectData),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create project');
+  }
+  return response.json();
+};
+
+const updateProject = async (id: string, projectData: Partial<ProjectFormData>): Promise<Project> => {
+  const response = await fetch('/api/projects', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id, ...projectData }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to update project');
+  }
+  return response.json();
+};
+
+const archiveProject = async (id: string): Promise<void> => {
+  const response = await fetch(`/api/projects?id=${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to archive project');
+  }
+};
 
 const statusConfig = {
   active: { label: "Active", variant: "success" as const },
@@ -55,8 +98,89 @@ export function ProjectsList() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
+  
+  // Database state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredProjects = mockProjects.filter(project => {
+  // Load projects on component mount
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const fetchedProjects = await fetchProjects();
+      setProjects(fetchedProjects);
+    } catch (err) {
+      console.error('Error loading projects:', err);
+      setError('Failed to load projects. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateProject = async (data: ProjectFormData) => {
+    try {
+      // Transform the data to match API expectations
+      const apiData = {
+        ...data,
+        managerIds: data.managers.map(m => m.id),
+        teamIds: [], // Add team support later if needed
+        sharePointFolderPath: data.sharePointFolderPath,
+        sharePointFolderId: data.sharePointFolderId,
+        sharePointExcelPath: data.sharePointExcelPath,
+        sharePointExcelId: data.sharePointExcelId,
+        enableExcelLogging: data.enableExcelLogging
+      };
+      
+      await createProject(apiData);
+      setIsCreateDialogOpen(false);
+      await loadProjects(); // Refresh the list
+    } catch (err) {
+      console.error('Error creating project:', err);
+      setError('Failed to create project. Please try again.');
+    }
+  };
+
+  const handleUpdateProject = async (data: ProjectFormData) => {
+    if (!editingProject) return;
+    try {
+      // Transform the data to match API expectations
+      const apiData = {
+        ...data,
+        managerIds: data.managers.map(m => m.id),
+        teamIds: [], // Add team support later if needed
+        sharePointFolderPath: data.sharePointFolderPath,
+        sharePointFolderId: data.sharePointFolderId,
+        sharePointExcelPath: data.sharePointExcelPath,
+        sharePointExcelId: data.sharePointExcelId,
+        enableExcelLogging: data.enableExcelLogging
+      };
+      
+      await updateProject(editingProject, apiData);
+      setEditingProject(null);
+      await loadProjects(); // Refresh the list
+    } catch (err) {
+      console.error('Error updating project:', err);
+      setError('Failed to update project. Please try again.');
+    }
+  };
+
+  const handleArchiveProject = async (id: string) => {
+    try {
+      await archiveProject(id);
+      await loadProjects(); // Refresh the list
+    } catch (err) {
+      console.error('Error archiving project:', err);
+      setError('Failed to archive project. Please try again.');
+    }
+  };
+
+  const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.managers.some(manager => manager.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -66,6 +190,30 @@ export function ProjectsList() {
     
     return matchesSearch && matchesStatus && matchesPriority;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading projects...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="text-red-500 mb-2">{error}</div>
+          <Button onClick={loadProjects} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -159,7 +307,7 @@ export function ProjectsList() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Showing {filteredProjects.length} of {mockProjects.length} projects
+          Showing {filteredProjects.length} of {projects.length} projects
         </div>
       </div>
 
@@ -206,7 +354,10 @@ export function ProjectsList() {
                     <Archive className="h-4 w-4 mr-2" />
                     Archive
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem 
+                    className="text-destructive"
+                    onClick={() => handleArchiveProject(project.id)}
+                  >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
                   </DropdownMenuItem>
@@ -282,11 +433,7 @@ export function ProjectsList() {
       <ProjectForm
         isOpen={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
-        onSubmit={async (data) => {
-          console.log("Creating project:", data);
-          setIsCreateDialogOpen(false);
-          // Here you would typically call an API to create the project
-        }}
+        onSubmit={handleCreateProject}
       />
 
       {/* Edit Project Dialog */}
@@ -294,12 +441,8 @@ export function ProjectsList() {
         <ProjectForm
           isOpen={editingProject !== null}
           onClose={() => setEditingProject(null)}
-          onSubmit={async (data) => {
-            console.log("Updating project:", editingProject, data);
-            setEditingProject(null);
-            // Here you would typically call an API to update the project
-          }}
-          project={mockProjects.find(p => p.id === editingProject)}
+          onSubmit={handleUpdateProject}
+          project={projects.find(p => p.id === editingProject)}
         />
       )}
     </div>

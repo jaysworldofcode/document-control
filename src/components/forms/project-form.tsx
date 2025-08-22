@@ -30,6 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { UserSelector } from "@/components/ui/user-selector";
 import { Project, ProjectFormData, CustomField, CustomFieldFormData } from '@/types/project.types';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, CUSTOM_FIELD_TYPES } from '@/types/project.types';
 import { SHAREPOINT_FOLDER_TEMPLATES, EXCEL_SHEET_TEMPLATES } from '@/constants/project.constants';
@@ -184,6 +185,7 @@ export function ProjectForm({
   const [isEditingField, setIsEditingField] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUserSelectorOpen, setIsUserSelectorOpen] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -547,20 +549,7 @@ export function ProjectForm({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        // For now, add a placeholder manager - in real app this would open a user selector
-                        const newManager = {
-                          id: `manager_${Date.now()}`,
-                          name: 'New Manager',
-                          email: 'manager@company.com',
-                          role: 'Project Manager',
-                          canApproveDocuments: true,
-                          isPrimaryManager: formData.managers.length === 0,
-                          addedAt: new Date().toISOString(),
-                          addedBy: 'current_user'
-                        };
-                        handleInputChange('managers', [...formData.managers, newManager]);
-                      }}
+                      onClick={() => setIsUserSelectorOpen(true)}
                     >
                       <UserPlus className="h-4 w-4 mr-2" />
                       Add Manager
@@ -875,6 +864,16 @@ export function ProjectForm({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* User Selector Dialog */}
+      <UserSelector
+        isOpen={isUserSelectorOpen}
+        onClose={() => setIsUserSelectorOpen(false)}
+        onSelect={(manager) => {
+          handleInputChange('managers', [...formData.managers, manager]);
+        }}
+        existingManagerIds={formData.managers.map(m => m.id)}
+      />
     </Dialog>
   );
 }

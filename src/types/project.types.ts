@@ -43,6 +43,7 @@ export interface Project {
   status: ProjectStatus;
   priority: ProjectPriority;
   managers: ProjectManager[]; // Changed from single manager to multiple managers
+  team: TeamMember[]; // Add team property
   startDate: string;
   endDate: string;
   progress: number;
@@ -86,6 +87,7 @@ export interface ProjectFormData {
   status: ProjectStatus;
   priority: ProjectPriority;
   managers: ProjectManager[]; // Changed to support multiple managers
+  team: TeamMember[]; // Add team property
   startDate: string;
   endDate: string;
   budget: string;
