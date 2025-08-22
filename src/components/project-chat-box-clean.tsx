@@ -27,6 +27,8 @@ import {
   File,
   Download,
   Reply,
+  Heart,
+  ThumbsUp,
   Clock,
   CheckCheck
 } from "lucide-react";
@@ -124,16 +126,6 @@ export function ProjectChatBox({
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      // First, ensure the user is a participant in the chat
-      await fetch('/api/chat/join', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ projectId })
-      });
-
       await Promise.all([
         fetchMessages(),
         fetchParticipants()
@@ -289,17 +281,6 @@ export function ProjectChatBox({
 
   const getOnlineCount = (): number => {
     return participants.filter(p => p.isOnline).length;
-  };
-
-  const getReactionEmoji = (reactionType: string): string => {
-    const emojiMap: Record<string, string> = {
-      'like': '👍',
-      'love': '❤️',
-      'laugh': '😂',
-      'angry': '😠',
-      'sad': '😢'
-    };
-    return emojiMap[reactionType] || '👍';
   };
 
   if (!isVisible) return null;
@@ -458,49 +439,22 @@ export function ProjectChatBox({
                                 Reply
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleReaction(message.id, 'like')}>
-                                <span className="mr-2">👍</span>
+                                <ThumbsUp className="h-3 w-3 mr-2" />
                                 Like
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleReaction(message.id, 'love')}>
-                                <span className="mr-2">❤️</span>
+                                <Heart className="h-3 w-3 mr-2" />
                                 Love
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'laugh')}>
-                                <span className="mr-2">😂</span>
-                                Laugh
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'angry')}>
-                                <span className="mr-2">😠</span>
-                                Angry
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'sad')}>
-                                <span className="mr-2">😢</span>
-                                Sad
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                         
                         {message.reactions && message.reactions.length > 0 && (
-                          <div className="flex gap-1 mt-1 flex-wrap">
-                            {/* Group reactions by type */}
-                            {Object.entries(
-                              message.reactions.reduce((acc, reaction) => {
-                                if (!acc[reaction.type]) {
-                                  acc[reaction.type] = [];
-                                }
-                                acc[reaction.type].push(reaction);
-                                return acc;
-                              }, {} as Record<string, ChatReaction[]>)
-                            ).map(([type, reactions]) => (
-                              <Badge 
-                                key={type} 
-                                variant="secondary" 
-                                className="text-xs cursor-pointer hover:bg-gray-200 transition-colors"
-                                onClick={() => handleReaction(message.id, type as ChatReaction['type'])}
-                                title={`${reactions.map(r => r.userName).join(', ')} reacted with ${type}`}
-                              >
-                                {getReactionEmoji(type)} {reactions.length}
+                          <div className="flex gap-1 mt-1">
+                            {message.reactions.map((reaction, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {reaction.type} {reaction.userName}
                               </Badge>
                             ))}
                           </div>

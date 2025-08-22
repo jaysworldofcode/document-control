@@ -67,6 +67,7 @@ import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 import { ProjectChatBox } from "@/components/project-chat-box";
 import { ChatToggleButton } from "@/components/chat-toggle-button";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -74,6 +75,7 @@ interface ProjectDetailsProps {
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all");
   const [activeTab, setActiveTab] = useState("overview");
@@ -94,12 +96,12 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mock current user - in real app this would come from auth context
-  const currentUser = {
-    id: "user_123",
-    name: "John Doe",
-    email: "john.doe@company.com"
-  };
+  // Current user from auth context
+  const currentUser = user ? {
+    id: user.id,
+    name: `${user.firstName} ${user.lastName}`,
+    email: user.email
+  } : null;
 
   // Fetch project data
   useEffect(() => {
@@ -865,27 +867,31 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       />
 
       {/* Project Chat */}
-      <ProjectChatBox
-        projectId={projectId}
-        projectName={project?.name || "Project Chat"}
-        currentUser={currentUser}
-        isVisible={isChatVisible}
-        onToggleVisibility={() => {
-          setIsChatVisible(false);
-          setChatUnreadCount(0); // Mark as read when closing
-        }}
-      />
+      {currentUser && (
+        <ProjectChatBox
+          projectId={projectId}
+          projectName={project?.name || "Project Chat"}
+          currentUser={currentUser}
+          isVisible={isChatVisible}
+          onToggleVisibility={() => {
+            setIsChatVisible(false);
+            setChatUnreadCount(0); // Mark as read when closing
+          }}
+        />
+      )}
 
       {/* Chat Toggle Button */}
-      <ChatToggleButton
-        isVisible={isChatVisible}
-        unreadCount={chatUnreadCount}
-        onToggle={() => {
-          setIsChatVisible(true);
-          setChatUnreadCount(0); // Mark as read when opening
-        }}
-        projectName={project?.name || "Project"}
-      />
+      {currentUser && (
+        <ChatToggleButton
+          isVisible={isChatVisible}
+          unreadCount={chatUnreadCount}
+          onToggle={() => {
+            setIsChatVisible(true);
+            setChatUnreadCount(0); // Mark as read when opening
+          }}
+          projectName={project?.name || "Project"}
+        />
+      )}
     </div>
   );
 }
