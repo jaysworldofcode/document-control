@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,19 +58,17 @@ interface TeamMember {
   isManager?: boolean;
   canApproveDocuments?: boolean;
   isPrimaryManager?: boolean;
+  addedAt?: string;
+  teamMemberId?: string; // The project_team record ID
 }
 
-// Mock user data for team member selection
-const AVAILABLE_USERS: TeamMember[] = [
-  { id: 'user_005', name: 'Alex Thompson', email: 'alex.thompson@techcorp.com', role: 'Senior Developer' },
-  { id: 'user_006', name: 'Maria Garcia', email: 'maria.garcia@techcorp.com', role: 'UX Designer' },
-  { id: 'user_007', name: 'Robert Chen', email: 'robert.chen@techcorp.com', role: 'QA Engineer' },
-  { id: 'user_008', name: 'Lisa Wang', email: 'lisa.wang@techcorp.com', role: 'Business Analyst' },
-  { id: 'user_009', name: 'James Wilson', email: 'james.wilson@techcorp.com', role: 'DevOps Engineer' },
-  { id: 'user_010', name: 'Sarah Kim', email: 'sarah.kim@techcorp.com', role: 'Technical Writer' },
-  { id: 'user_011', name: 'Michael Brown', email: 'michael.brown@techcorp.com', role: 'Security Specialist' },
-  { id: 'user_012', name: 'Jennifer Davis', email: 'jennifer.davis@techcorp.com', role: 'Project Coordinator' },
-];
+interface User {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+}
 
 export function TeamMemberManagement({ 
   project, 
@@ -79,100 +77,182 @@ export function TeamMemberManagement({
   loading = false 
 }: TeamMemberManagementProps) {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedRole, setSelectedRole] = useState("team member");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  
+  // State for team members and available users
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
-  // Convert project team to detailed members (mock implementation)
-  const currentMembers: TeamMember[] = project.team.map((name, index) => ({
-    id: project.teamIds?.[index] || `temp_${index}`,
-    name,
-    email: `${name.toLowerCase().replace(' ', '.')}@techcorp.com`,
-    role: 'Team Member',
-    isManager: project.managers.some(manager => manager.name === name)
-  }));
+  // Fetch team members on component mount
+  useEffect(() => {
+    fetchTeamMembers();
+  }, [project.id]);
 
-  // Managers as team members
+  // Fetch available users when add member dialog opens
+  useEffect(() => {
+    if (isAddMemberOpen) {
+      fetchAvailableUsers();
+    }
+  }, [isAddMemberOpen]);
+
+  const fetchTeamMembers = async () => {
+    try {
+      setIsLoadingTeam(true);
+      const response = await fetch(`/api/team?projectId=${project.id}`);
+      if (response.ok) {
+        const members = await response.json();
+        setTeamMembers(members);
+      } else {
+        console.error('Failed to fetch team members');
+        setTeamMembers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      setTeamMembers([]);
+    } finally {
+      setIsLoadingTeam(false);
+    }
+  };
+
+  const fetchAvailableUsers = async () => {
+    try {
+      setIsLoadingUsers(true);
+      const response = await fetch('/api/users/list');
+      if (response.ok) {
+        const users = await response.json();
+        // Validate that users is an array and has the expected structure
+        if (Array.isArray(users)) {
+          // Filter out users who are already team members or managers
+          const existingMemberIds = [
+            ...teamMembers.map(m => m.id),
+            ...project.managers.map(m => m.id)
+          ];
+          const filtered = users.filter((user: any) => 
+            user && 
+            user.id && 
+            !existingMemberIds.includes(user.id) &&
+            user.first_name &&
+            user.last_name
+          );
+          setAvailableUsers(filtered);
+        } else {
+          console.error('Invalid users data structure:', users);
+          setAvailableUsers([]);
+        }
+      } else {
+        console.error('Failed to fetch available users');
+        setAvailableUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching available users:', error);
+      setAvailableUsers([]);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Managers as team members for display
   const managers: TeamMember[] = project.managers.map(manager => ({
     id: manager.id,
     name: manager.name,
     email: manager.email,
-    role: manager.role,
+    role: manager.role || 'Project Manager',
     isManager: true,
     canApproveDocuments: manager.canApproveDocuments,
-    isPrimaryManager: manager.isPrimaryManager
+    isPrimaryManager: manager.isPrimaryManager,
+    addedAt: manager.addedAt
   }));
-
-  // Available users excluding current team members and managers
-  const availableUsers = AVAILABLE_USERS.filter(user => 
-    !currentMembers.some(member => member.id === user.id) &&
-    !managers.some(manager => manager.id === user.id)
-  );
 
   const handleAddMember = async () => {
     if (!selectedUserId) {
-      setErrors(['Please select a team member']);
-      return;
-    }
-
-    const selectedUser = AVAILABLE_USERS.find(user => user.id === selectedUserId);
-    if (!selectedUser) {
-      setErrors(['Selected user not found']);
+      setErrors(['Please select a user to add']);
       return;
     }
 
     setIsSubmitting(true);
+    setErrors([]);
+
     try {
-      const newMembers = [...project.team, selectedUser.name];
-      const newMemberIds = [...(project.teamIds || []), selectedUser.id];
+      const response = await fetch('/api/team', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          userId: selectedUserId,
+          role: selectedRole
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add team member');
+      }
+
+      const newMember = await response.json();
       
-      await onUpdateTeam(newMembers, newMemberIds);
+      // Add the new member to local state
+      setTeamMembers(prev => [...prev, newMember]);
       
-      setSelectedUserId("");
+      // Close the modal and reset form
       setIsAddMemberOpen(false);
-      setErrors([]);
-    } catch (error) {
-      setErrors(['Failed to add team member. Please try again.']);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleRemoveMember = async (memberIndex: number) => {
-    if (currentMembers[memberIndex]?.isManager) {
-      setErrors(['Cannot remove the project manager from the team']);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const newMembers = project.team.filter((_, index) => index !== memberIndex);
-      const newMemberIds = (project.teamIds || []).filter((_, index) => index !== memberIndex);
+      setSelectedUserId("");
+      setSelectedRole("team member");
       
-      await onUpdateTeam(newMembers, newMemberIds);
-      setErrors([]);
+      // Refresh available users list
+      fetchAvailableUsers();
     } catch (error) {
-      setErrors(['Failed to remove team member. Please try again.']);
+      console.error('Error adding team member:', error);
+      setErrors([error instanceof Error ? error.message : 'Failed to add team member']);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleChangeManager = async (newManagerId: string) => {
-    const newManager = AVAILABLE_USERS.find(user => user.id === newManagerId) ||
-                      currentMembers.find(member => member.id === newManagerId);
+  const handleRemoveMember = async (memberId: string) => {
+    const member = teamMembers.find(m => m.id === memberId);
+    if (!member) return;
     
-    if (!newManager) {
-      setErrors(['Selected manager not found']);
-      return;
-    }
+    setMemberToRemove(member);
+    setIsRemoveDialogOpen(true);
+  };
 
-    setIsSubmitting(true);
+  const confirmRemoveMember = async () => {
+    if (!memberToRemove) return;
+
     try {
-      await onUpdateManager(newManager.name, newManager.id);
-      setErrors([]);
+      setIsSubmitting(true);
+      const response = await fetch(`/api/team?projectId=${project.id}&userId=${memberToRemove.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove team member');
+      }
+
+      // Remove the member from local state
+      setTeamMembers(prev => prev.filter(member => member.id !== memberToRemove.id));
+      
+      // Refresh available users list if add dialog is open
+      if (isAddMemberOpen) {
+        fetchAvailableUsers();
+      }
+
+      // Close the dialog and reset state
+      setIsRemoveDialogOpen(false);
+      setMemberToRemove(null);
     } catch (error) {
-      setErrors(['Failed to change project manager. Please try again.']);
+      console.error('Error removing team member:', error);
+      setErrors([error instanceof Error ? error.message : 'Failed to remove team member']);
     } finally {
       setIsSubmitting(false);
     }
@@ -198,77 +278,41 @@ export function TeamMemberManagement({
       {/* Project Managers */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-yellow-500" />
-                Project Managers
-              </CardTitle>
-              <CardDescription>
-                People responsible for managing this project
-              </CardDescription>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={loading || isSubmitting}>
-                  Manage Managers
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Add New Manager</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {currentMembers.filter(member => !member.isManager).map((member) => (
-                  <DropdownMenuItem 
-                    key={member.id}
-                    onClick={() => handleChangeManager(member.id)}
-                  >
-                    {member.name}
-                  </DropdownMenuItem>
-                ))}
-                {availableUsers.map((user) => (
-                  <DropdownMenuItem 
-                    key={user.id}
-                    onClick={() => handleChangeManager(user.id)}
-                  >
-                    {user.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5" />
+              Project Managers
+            </CardTitle>
+            <CardDescription>
+              People responsible for managing this project
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {managers.map((manager) => (
-              <div key={manager.id} className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserCheck className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{manager.name}</p>
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Mail className="h-3 w-3" />
-                    {manager.email}
-                  </p>
+              <div key={manager.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <UserCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{manager.name}</p>
+                      {manager.isPrimaryManager && (
+                        <Badge variant="secondary">Primary</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Mail className="h-3 w-3" />
+                      {manager.email}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {manager.isPrimaryManager && (
-                    <Badge variant="default">Primary Manager</Badge>
-                  )}
+                  <Badge variant="outline">{manager.role}</Badge>
                   {manager.canApproveDocuments && (
-                    <Badge variant="outline">Can Approve</Badge>
-                  )}
-                  {!manager.isPrimaryManager && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        // Handle removing secondary manager
-                        console.log('Remove manager:', manager.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Badge variant="outline" className="text-xs">Can Approve</Badge>
                   )}
                 </div>
               </div>
@@ -284,7 +328,7 @@ export function TeamMemberManagement({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Team Members ({currentMembers.filter(m => !m.isManager).length})
+                Team Members ({teamMembers.length})
               </CardTitle>
               <CardDescription>
                 Manage project team members and their access
@@ -292,7 +336,7 @@ export function TeamMemberManagement({
             </div>
             <Button 
               onClick={() => setIsAddMemberOpen(true)}
-              disabled={loading || isSubmitting}
+              disabled={loading || isSubmitting || isLoadingTeam}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Member
@@ -300,63 +344,69 @@ export function TeamMemberManagement({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {currentMembers.filter(member => !member.isManager).map((member, index) => (
-              <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                    <span className="text-sm font-medium">
-                      {member.name.split(' ').map(n => n[0]).join('')}
-                    </span>
+          {isLoadingTeam ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading team members...</span>
+            </div>
+          ) : teamMembers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No team members added yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Add team members to collaborate on this project
+              </p>
+              <Button onClick={() => setIsAddMemberOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Member
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {teamMembers.map((member) => (
+                <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                      <span className="text-sm font-medium">
+                        {member.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{member.name}</p>
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <Mail className="h-3 w-3" />
+                        {member.email}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Mail className="h-3 w-3" />
-                      {member.email}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{member.role}</Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          disabled={loading || isSubmitting}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => handleRemoveMember(member.id)}
+                          className="text-destructive"
+                        >
+                          <UserX className="h-4 w-4 mr-2" />
+                          Remove from Team
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{member.role}</Badge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8"
-                        disabled={loading || isSubmitting}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleChangeManager(member.id)}>
-                        <Crown className="h-4 w-4 mr-2" />
-                        Make Manager
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => handleRemoveMember(index)}
-                        className="text-destructive"
-                      >
-                        <UserX className="h-4 w-4 mr-2" />
-                        Remove from Team
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            ))}
-
-            {currentMembers.filter(m => !m.isManager).length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No team members added yet</p>
-                <p className="text-sm">Add team members to collaborate on this project</p>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -378,14 +428,42 @@ export function TeamMemberManagement({
                   <SelectValue placeholder="Choose a team member..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex flex-col items-start">
-                        <span>{user.name}</span>
-                        <span className="text-xs text-muted-foreground">{user.email}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {isLoadingUsers ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="ml-2">Loading users...</span>
+                    </div>
+                  ) : availableUsers.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground">
+                      No users available to add
+                    </div>
+                  ) : (
+                    availableUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex flex-col items-start">
+                          <span>{user.first_name} {user.last_name}</span>
+                          <span className="text-xs text-muted-foreground">{user.email}</span>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="team member">Team Member</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
+                  <SelectItem value="designer">Designer</SelectItem>
+                  <SelectItem value="qa engineer">QA Engineer</SelectItem>
+                  <SelectItem value="business analyst">Business Analyst</SelectItem>
+                  <SelectItem value="technical writer">Technical Writer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -399,11 +477,11 @@ export function TeamMemberManagement({
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                           <span className="text-sm font-medium">
-                            {selectedUser.name.split(' ').map(n => n[0]).join('')}
+                            {selectedUser.first_name?.[0] || ''}{selectedUser.last_name?.[0] || ''}
                           </span>
                         </div>
                         <div>
-                          <p className="font-medium">{selectedUser.name}</p>
+                          <p className="font-medium">{selectedUser.first_name} {selectedUser.last_name}</p>
                           <p className="text-sm text-muted-foreground">{selectedUser.role}</p>
                           <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
                         </div>
@@ -422,6 +500,7 @@ export function TeamMemberManagement({
               onClick={() => {
                 setIsAddMemberOpen(false);
                 setSelectedUserId("");
+                setSelectedRole("team member");
                 setErrors([]);
               }}
               disabled={isSubmitting}
@@ -436,6 +515,62 @@ export function TeamMemberManagement({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Add Member
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation Modal */}
+      <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Team Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this team member from the project?
+            </DialogDescription>
+          </DialogHeader>
+
+          {memberToRemove && (
+            <div className="py-4">
+              <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/50">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <span className="text-sm font-medium">
+                    {memberToRemove.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-medium">{memberToRemove.name}</p>
+                  <p className="text-sm text-muted-foreground">{memberToRemove.email}</p>
+                  <p className="text-xs text-muted-foreground">{memberToRemove.role}</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                This action cannot be undone. The team member will lose access to this project.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setIsRemoveDialogOpen(false);
+                setMemberToRemove(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmRemoveMember}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Remove Member
             </Button>
           </DialogFooter>
         </DialogContent>

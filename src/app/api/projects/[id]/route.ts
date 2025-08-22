@@ -28,7 +28,7 @@ async function verifyToken(request: NextRequest) {
 // GET - Fetch a single project by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -36,7 +36,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const projectId = params.id;
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });

@@ -59,11 +59,11 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the frontend interface
     const transformedUsers = users?.map(user => ({
       id: user.id,
-      name: `${user.first_name} ${user.last_name}`,
-      email: user.email,
-      role: user.role,
-      firstName: user.first_name,
-      lastName: user.last_name
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      role: user.role || '',
+      name: `${user.first_name || ''} ${user.last_name || ''}`.trim()
     })) || [];
 
     return NextResponse.json(transformedUsers);

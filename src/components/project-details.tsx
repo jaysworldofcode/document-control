@@ -90,6 +90,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   // Data state
   const [project, setProject] = useState<Project | null>(null);
   const [projectDocuments, setProjectDocuments] = useState<Document[]>([]);
+  const [teamMembersCount, setTeamMembersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +128,15 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         } else {
           // If documents API fails, just set empty array (documents table might be empty)
           setProjectDocuments([]);
+        }
+
+        // Fetch team members count
+        const teamResponse = await fetch(`/api/team?projectId=${projectId}`);
+        if (teamResponse.ok) {
+          const teamData = await teamResponse.json();
+          setTeamMembersCount(teamData.length);
+        } else {
+          setTeamMembersCount(0);
         }
       } catch (error) {
         console.error('Error fetching project data:', error);
@@ -336,9 +346,9 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{project.managers.length}</div>
+            <div className="text-2xl font-bold">{project.managers.length + teamMembersCount}</div>
             <p className="text-xs text-muted-foreground">
-              Active managers
+              {project.managers.length} managers, {teamMembersCount} members
             </p>
           </CardContent>
         </Card>
