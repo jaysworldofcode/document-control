@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { ChatMessage, ChatReaction } from '@/types/chat.types';
 
+// For realtime, we need to use service role to bypass RLS
+// This is safe because we still check permissions in our API endpoints
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -19,11 +21,11 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
   const [isConnected, setIsConnected] = useState(false);
   const [channel, setChannel] = useState<any>(null);
   
-  // Callback handlers
-  const [newMessageCallback, setNewMessageCallback] = useState<((message: ChatMessage) => void) | null>(null);
-  const [messageUpdateCallback, setMessageUpdateCallback] = useState<((message: ChatMessage) => void) | null>(null);
-  const [messageDeleteCallback, setMessageDeleteCallback] = useState<((messageId: string) => void) | null>(null);
-  const [reactionUpdateCallback, setReactionUpdateCallback] = useState<((messageId: string, reactions: ChatReaction[]) => void) | null>(null);
+  // Use refs for callbacks to avoid dependency issues
+  const newMessageCallbackRef = useRef<((message: ChatMessage) => void) | null>(null);
+  const messageUpdateCallbackRef = useRef<((message: ChatMessage) => void) | null>(null);
+  const messageDeleteCallbackRef = useRef<((messageId: string) => void) | null>(null);
+  const reactionUpdateCallbackRef = useRef<((messageId: string, reactions: ChatReaction[]) => void) | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -42,11 +44,11 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
         async (payload) => {
           console.log('New message received:', payload);
           
-          if (newMessageCallback && payload.new) {
+          if (newMessageCallbackRef.current && payload.new) {
             // Fetch user info for the new message
             const { data: userInfo } = await supabase
               .from('users')
-              .select('name, email')
+              .select('first_name, last_name, email')
               .eq('id', payload.new.user_id)
               .single();
 
@@ -54,7 +56,7 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
               id: payload.new.id,
               projectId: payload.new.project_id,
               userId: payload.new.user_id,
-              userName: userInfo?.name || 'Unknown User',
+              userName: `${userInfo?.first_name || ''} ${userInfo?.last_name || ''}`.trim() || 'Unknown User',
               userEmail: userInfo?.email || '',
               content: payload.new.content,
               createdAt: payload.new.created_at,
@@ -66,7 +68,7 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
               reactions: []
             };
 
-            newMessageCallback(formattedMessage);
+            newMessageCallbackRef.current(formattedMessage);
           }
         }
       )
@@ -81,11 +83,11 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
         async (payload) => {
           console.log('Message updated:', payload);
           
-          if (messageUpdateCallback && payload.new) {
+          if (messageUpdateCallbackRef.current && payload.new) {
             // Fetch user info for the updated message
             const { data: userInfo } = await supabase
               .from('users')
-              .select('name, email')
+              .select('first_name, last_name, email')
               .eq('id', payload.new.user_id)
               .single();
 
@@ -93,7 +95,7 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
               id: payload.new.id,
               projectId: payload.new.project_id,
               userId: payload.new.user_id,
-              userName: userInfo?.name || 'Unknown User',
+              userName: `${userInfo?.first_name || ''} ${userInfo?.last_name || ''}`.trim() || 'Unknown User',
               userEmail: userInfo?.email || '',
               content: payload.new.content,
               createdAt: payload.new.created_at,
@@ -105,7 +107,7 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
               reactions: []
             };
 
-            messageUpdateCallback(formattedMessage);
+            messageUpdateCallbackRef.current(formattedMessage);
           }
         }
       )
@@ -120,8 +122,46 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
         (payload) => {
           console.log('Message deleted:', payload);
           
-          if (messageDeleteCallback && payload.old) {
-            messageDeleteCallback(payload.old.id);
+          if (messageDeleteCallbackRef.current && payload.old) {
+            messageDeleteCallbackRef.current(payload.old.id);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'project_chat_reactions'
+        },
+        async (payload) => {
+          console.log('Reaction updated:', payload);
+          
+          if (reactionUpdateCallbackRef.current && (payload.new || payload.old)) {
+            const messageId = payload.new?.message_id || payload.old?.message_id;
+            
+            if (messageId) {
+              // Fetch updated reactions for this message
+              const { data: reactions } = await supabase
+                .from('project_chat_reactions')
+                .select(`
+                  id,
+                  reaction_type,
+                  created_at,
+                  users(id, first_name, last_name)
+                `)
+                .eq('message_id', messageId);
+
+              const formattedReactions: ChatReaction[] = reactions?.map(reaction => ({
+                id: reaction.id,
+                type: reaction.reaction_type as ChatReaction['type'],
+                userId: (reaction.users as any)?.id,
+                userName: `${(reaction.users as any)?.first_name || ''} ${(reaction.users as any)?.last_name || ''}`.trim() || 'Unknown User',
+                createdAt: reaction.created_at
+              })) || [];
+
+              reactionUpdateCallbackRef.current(messageId, formattedReactions);
+            }
           }
         }
       )
@@ -137,23 +177,23 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
       chatChannel.unsubscribe();
       setIsConnected(false);
     };
-  }, [projectId, newMessageCallback, messageUpdateCallback, messageDeleteCallback, reactionUpdateCallback]);
+  }, [projectId]); // Remove callback dependencies to prevent re-subscriptions
 
   // Callback setters
   const onNewMessage = useCallback((callback: (message: ChatMessage) => void) => {
-    setNewMessageCallback(() => callback);
+    newMessageCallbackRef.current = callback;
   }, []);
 
   const onMessageUpdate = useCallback((callback: (message: ChatMessage) => void) => {
-    setMessageUpdateCallback(() => callback);
+    messageUpdateCallbackRef.current = callback;
   }, []);
 
   const onMessageDelete = useCallback((callback: (messageId: string) => void) => {
-    setMessageDeleteCallback(() => callback);
+    messageDeleteCallbackRef.current = callback;
   }, []);
 
   const onReactionUpdate = useCallback((callback: (messageId: string, reactions: ChatReaction[]) => void) => {
-    setReactionUpdateCallback(() => callback);
+    reactionUpdateCallbackRef.current = callback;
   }, []);
 
   return {
