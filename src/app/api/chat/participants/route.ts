@@ -71,14 +71,23 @@ export async function GET(request: NextRequest) {
     
     let isProjectMember = false;
     if (!isOrgOwner) {
-      const { data: membership } = await supabase
-        .from('project_members')
+      // Check project managers
+      const { data: managerCheck } = await supabase
+        .from('project_managers')
         .select('user_id')
         .eq('project_id', projectId)
         .eq('user_id', user.userId)
         .single();
-      
-      isProjectMember = !!membership;
+
+      // Check project team
+      const { data: teamCheck } = await supabase
+        .from('project_team')
+        .select('user_id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.userId)
+        .single();
+
+      isProjectMember = !!(managerCheck || teamCheck);
     }
 
     if (!isOrgOwner && !isProjectMember) {

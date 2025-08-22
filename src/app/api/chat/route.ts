@@ -57,20 +57,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Check if user has access to this project (org owner, manager, or team member)
-    const { data: accessCheck } = await supabase
+    // Check if user has access to this project
+    // First, check if user is organization owner
+    const { data: project } = await supabase
       .from('projects')
-      .select(`
-        id,
-        organization_id,
-        project_managers!inner(user_id),
-        project_team!inner(user_id)
-      `)
+      .select('id, organization_id')
       .eq('id', projectId)
-      .or(`organization_id.eq.${user.organizationId},project_managers.user_id.eq.${user.userId},project_team.user_id.eq.${user.userId}`)
       .single();
 
-    // Additional check: if user is organization owner, they should have access
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Check if user is organization owner
     const { data: orgOwnerCheck } = await supabase
       .from('organizations')
       .select('owner_id')
@@ -79,7 +78,30 @@ export async function GET(request: NextRequest) {
 
     const isOrgOwner = orgOwnerCheck?.owner_id === user.userId;
 
-    if (!accessCheck && !isOrgOwner) {
+    // If not org owner, check if user is project manager or team member
+    let hasProjectAccess = isOrgOwner;
+    
+    if (!isOrgOwner) {
+      // Check project managers
+      const { data: managerCheck } = await supabase
+        .from('project_managers')
+        .select('user_id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.userId)
+        .single();
+
+      // Check project team
+      const { data: teamCheck } = await supabase
+        .from('project_team')
+        .select('user_id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.userId)
+        .single();
+
+      hasProjectAccess = !!(managerCheck || teamCheck);
+    }
+
+    if (!hasProjectAccess) {
       return NextResponse.json({ error: 'Access denied to this project' }, { status: 403 });
     }
 
@@ -159,20 +181,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project ID and content are required' }, { status: 400 });
     }
 
-    // Check if user has access to this project (org owner, manager, or team member)
-    const { data: accessCheck } = await supabase
+    // Check if user has access to this project
+    // First, check if user is organization owner
+    const { data: project } = await supabase
       .from('projects')
-      .select(`
-        id,
-        organization_id,
-        project_managers!inner(user_id),
-        project_team!inner(user_id)
-      `)
+      .select('id, organization_id')
       .eq('id', projectId)
-      .or(`organization_id.eq.${user.organizationId},project_managers.user_id.eq.${user.userId},project_team.user_id.eq.${user.userId}`)
       .single();
 
-    // Additional check: if user is organization owner, they should have access
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Check if user is organization owner
     const { data: orgOwnerCheck } = await supabase
       .from('organizations')
       .select('owner_id')
@@ -181,7 +202,30 @@ export async function POST(request: NextRequest) {
 
     const isOrgOwner = orgOwnerCheck?.owner_id === user.userId;
 
-    if (!accessCheck && !isOrgOwner) {
+    // If not org owner, check if user is project manager or team member
+    let hasProjectAccess = isOrgOwner;
+    
+    if (!isOrgOwner) {
+      // Check project managers
+      const { data: managerCheck } = await supabase
+        .from('project_managers')
+        .select('user_id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.userId)
+        .single();
+
+      // Check project team
+      const { data: teamCheck } = await supabase
+        .from('project_team')
+        .select('user_id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.userId)
+        .single();
+
+      hasProjectAccess = !!(managerCheck || teamCheck);
+    }
+
+    if (!hasProjectAccess) {
       return NextResponse.json({ error: 'Access denied to this project' }, { status: 403 });
     }
 
