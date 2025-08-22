@@ -1,536 +1,1085 @@
 "use client";
 
-import React, { useState } from 'react';
-import { AppLayout } from "@/components/layout";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { RoleForm } from "@/components/forms/role-form";
-import { DepartmentForm } from "@/components/forms/department-form";
-import { useRoles, useDepartments, useRoleDepartmentFilters } from "@/hooks/useRoleDepartment";
-import { Role, Department, RoleFormData, DepartmentFormData, CreateDepartmentRequest } from "@/types/role-department.types";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { AppLayout } from "@/components/layout/app-layout";
 import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  Users, 
-  Building, 
+  Users,
   Shield,
-  AlertTriangle
-} from 'lucide-react';
-import { toast } from 'sonner';
+  Check,
+  X,
+  Loader2,
+  Edit,
+  Trash2,
+  Plus,
+  Building,
+  UserCheck,
+  AlertCircle
+} from "lucide-react";
+
+interface Department {
+  id: string;
+  name: string;
+  description: string | null;
+  organization_id: string;
+  manager_id: string | null;
+  manager?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  budget: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  organization_id: string;
+  permissions: Record<string, boolean>;
+  is_system_role: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OrganizationMember {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at: string;
+}
 
 export default function RoleDepartmentPage() {
-  const [activeTab, setActiveTab] = useState('roles');
-  const [selectedRole, setSelectedRole] = useState<Role | undefined>();
-  const [selectedDepartment, setSelectedDepartment] = useState<Department | undefined>();
-  const [isRoleFormOpen, setIsRoleFormOpen] = useState(false);
-  const [isDepartmentFormOpen, setIsDepartmentFormOpen] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAddingDepartment, setIsAddingDepartment] = useState(false);
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'department' | 'role', id: string, name: string } | null>(null);
 
-  // Custom hooks for data management
-  const {
-    roles,
-    loading: rolesLoading,
-    createRole,
-    updateRole,
-    deleteRole,
-    toggleRoleStatus
-  } = useRoles();
+  // Department form state
+  const [departmentForm, setDepartmentForm] = useState({
+    name: "",
+    description: "",
+    managerId: "",
+    budget: "",
+  });
 
-  const {
-    departments,
-    loading: departmentsLoading,
-    createDepartment,
-    updateDepartment,
-    deleteDepartment,
-    toggleDepartmentStatus
-  } = useDepartments();
+  // Role form state
+  const [roleForm, setRoleForm] = useState({
+    name: "",
+    description: "",
+    permissions: {
+      admin: false,
+      manage_users: false,
+      manage_departments: false,
+      manage_roles: false,
+      manage_organization: false,
+      manage_documents: false,
+      view_reports: false,
+    },
+  });
 
-  const {
-    roleFilters,
-    departmentFilters,
-    updateRoleFilters,
-    updateDepartmentFilters,
-    filteredRoles,
-    filteredDepartments
-  } = useRoleDepartmentFilters(roles, departments);
-
-  // Role form handlers
-  const handleCreateRole = () => {
-    setSelectedRole(undefined);
-    setIsRoleFormOpen(true);
-  };
-
-  const handleEditRole = (role: Role) => {
-    setSelectedRole(role);
-    setIsRoleFormOpen(true);
-  };
-
-  const handleRoleSubmit = async (data: RoleFormData) => {
-    try {
-      if (selectedRole) {
-        await updateRole(selectedRole.id, data);
-        toast.success('Role updated successfully');
-      } else {
-        await createRole(data);
-        toast.success('Role created successfully');
+  // Data fetching
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.organizationId) {
+        setLoading(false);
+        return;
       }
-      setIsRoleFormOpen(false);
-    } catch (error) {
-      toast.error('Failed to save role');
-      throw error;
-    }
-  };
 
-  const handleDeleteRole = async (role: Role) => {
-    if (confirm(`Are you sure you want to delete the role "${role.name}"?`)) {
       try {
-        await deleteRole(role.id);
-        toast.success('Role deleted successfully');
+        // Fetch departments
+        const deptResponse = await fetch('/api/departments', {
+          credentials: 'include',
+        });
+
+        if (deptResponse.ok) {
+          const deptData = await deptResponse.json();
+          setDepartments(deptData.departments);
+        }
+
+        // Fetch roles
+        const rolesResponse = await fetch('/api/roles', {
+          credentials: 'include',
+        });
+
+        if (rolesResponse.ok) {
+          const rolesData = await rolesResponse.json();
+          setRoles(rolesData.roles);
+        }
+
+        // Fetch organization members for department managers
+        const orgResponse = await fetch('/api/organizations', {
+          credentials: 'include',
+        });
+
+        if (orgResponse.ok) {
+          const orgData = await orgResponse.json();
+          setMembers(orgData.members);
+        }
       } catch (error) {
-        toast.error('Failed to delete role');
+        console.error('Failed to fetch data:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load data. Please refresh the page.",
+        });
+      } finally {
+        setLoading(false);
       }
+    };
+
+    if (user) {
+      fetchData();
     }
-  };
+  }, [user, toast]);
 
-  const handleToggleRoleStatus = async (role: Role) => {
+  // Department handlers
+  const handleCreateDepartment = async () => {
     try {
-      await toggleRoleStatus(role.id);
-      toast.success(`Role ${role.isActive ? 'deactivated' : 'activated'} successfully`);
-    } catch (error) {
-      toast.error('Failed to update role status');
-    }
-  };
+      const response = await fetch('/api/departments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: departmentForm.name,
+          description: departmentForm.description,
+          managerId: (departmentForm.managerId && departmentForm.managerId !== "none") ? departmentForm.managerId : null,
+          budget: departmentForm.budget ? parseFloat(departmentForm.budget) : null,
+        }),
+      });
 
-  // Department form handlers
-  const handleCreateDepartment = () => {
-    setSelectedDepartment(undefined);
-    setIsDepartmentFormOpen(true);
-  };
-
-  const handleEditDepartment = (department: Department) => {
-    setSelectedDepartment(department);
-    setIsDepartmentFormOpen(true);
-  };
-
-  const handleDepartmentSubmit = async (data: DepartmentFormData) => {
-    try {
-      const departmentData = {
-        name: data.name,
-        description: data.description,
-        headOfDepartment: data.headOfDepartment || undefined,
-        parentDepartmentId: data.parentDepartmentId || undefined,
-        location: data.location || undefined,
-        budget: data.budget ? parseFloat(data.budget) : undefined
-      };
-
-      if (selectedDepartment) {
-        await updateDepartment(selectedDepartment.id, departmentData);
-        toast.success('Department updated successfully');
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(prev => [...prev, data.department]);
+        setDepartmentForm({ name: "", description: "", managerId: "", budget: "" });
+        setIsAddingDepartment(false);
+        toast({
+          title: "Department created",
+          description: "The department has been created successfully.",
+        });
       } else {
-        await createDepartment(departmentData);
-        toast.success('Department created successfully');
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Creation failed",
+          description: error.error || 'Failed to create department',
+        });
       }
-      setIsDepartmentFormOpen(false);
     } catch (error) {
-      toast.error('Failed to save department');
-      throw error;
+      console.error('Department creation error:', error);
+      toast({
+        variant: "destructive",
+        title: "Creation failed",
+        description: "An unexpected error occurred while creating the department.",
+      });
     }
   };
 
-  const handleDeleteDepartment = async (department: Department) => {
-    if (confirm(`Are you sure you want to delete the department "${department.name}"?`)) {
-      try {
-        await deleteDepartment(department.id);
-        toast.success('Department deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete department');
-      }
-    }
-  };
-
-  const handleToggleDepartmentStatus = async (department: Department) => {
+  const handleUpdateDepartment = async () => {
+    if (!editingDepartment) return;
+    
     try {
-      await toggleDepartmentStatus(department.id);
-      toast.success(`Department ${department.isActive ? 'deactivated' : 'activated'} successfully`);
+      const response = await fetch(`/api/departments/${editingDepartment.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: departmentForm.name,
+          description: departmentForm.description,
+          managerId: (departmentForm.managerId && departmentForm.managerId !== "none") ? departmentForm.managerId : null,
+          budget: departmentForm.budget ? parseFloat(departmentForm.budget) : null,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(prev => prev.map(dept => 
+          dept.id === editingDepartment.id ? data.department : dept
+        ));
+        setDepartmentForm({ name: "", description: "", managerId: "", budget: "" });
+        setEditingDepartment(null);
+        toast({
+          title: "Department updated",
+          description: "The department has been updated successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error.error || 'Failed to update department',
+        });
+      }
     } catch (error) {
-      toast.error('Failed to update department status');
+      console.error('Department update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "An unexpected error occurred while updating the department.",
+      });
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0
-    }).format(amount);
+  const handleDeleteDepartment = async (departmentId: string) => {
+    try {
+      const response = await fetch(`/api/departments/${departmentId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setDepartments(prev => prev.filter(dept => dept.id !== departmentId));
+        toast({
+          title: "Department deleted",
+          description: "The department has been deleted successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Deletion failed",
+          description: error.error || 'Failed to delete department',
+        });
+      }
+    } catch (error) {
+      console.error('Department deletion error:', error);
+      toast({
+        variant: "destructive",
+        title: "Deletion failed",
+        description: "An unexpected error occurred while deleting the department.",
+      });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
+    }
   };
+
+  // Role handlers
+  const handleCreateRole = async () => {
+    try {
+      const response = await fetch('/api/roles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: roleForm.name,
+          description: roleForm.description,
+          permissions: roleForm.permissions,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRoles(prev => [...prev, data.role]);
+        setRoleForm({
+          name: "",
+          description: "",
+          permissions: {
+            admin: false,
+            manage_users: false,
+            manage_departments: false,
+            manage_roles: false,
+            manage_organization: false,
+            manage_documents: false,
+            view_reports: false,
+          },
+        });
+        setIsAddingRole(false);
+        toast({
+          title: "Role created",
+          description: "The role has been created successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Creation failed",
+          description: error.error || 'Failed to create role',
+        });
+      }
+    } catch (error) {
+      console.error('Role creation error:', error);
+      toast({
+        variant: "destructive",
+        title: "Creation failed",
+        description: "An unexpected error occurred while creating the role.",
+      });
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingRole) return;
+    
+    try {
+      const response = await fetch(`/api/roles/${editingRole.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: roleForm.name,
+          description: roleForm.description,
+          permissions: roleForm.permissions,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRoles(prev => prev.map(role => 
+          role.id === editingRole.id ? data.role : role
+        ));
+        setRoleForm({
+          name: "",
+          description: "",
+          permissions: {
+            admin: false,
+            manage_users: false,
+            manage_departments: false,
+            manage_roles: false,
+            manage_organization: false,
+            manage_documents: false,
+            view_reports: false,
+          },
+        });
+        setEditingRole(null);
+        toast({
+          title: "Role updated",
+          description: "The role has been updated successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error.error || 'Failed to update role',
+        });
+      }
+    } catch (error) {
+      console.error('Role update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "An unexpected error occurred while updating the role.",
+      });
+    }
+  };
+
+  const handleDeleteRole = async (roleId: string) => {
+    try {
+      const response = await fetch(`/api/roles/${roleId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setRoles(prev => prev.filter(role => role.id !== roleId));
+        toast({
+          title: "Role deleted",
+          description: "The role has been deleted successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Deletion failed",
+          description: error.error || 'Failed to delete role',
+        });
+      }
+    } catch (error) {
+      console.error('Role deletion error:', error);
+      toast({
+        variant: "destructive",
+        title: "Deletion failed",
+        description: "An unexpected error occurred while deleting the role.",
+      });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!itemToDelete) return;
+    
+    if (itemToDelete.type === 'department') {
+      handleDeleteDepartment(itemToDelete.id);
+    } else {
+      handleDeleteRole(itemToDelete.id);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <p>Please log in to access this page.</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Role & Department Management</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Roles & Departments</h1>
             <p className="text-muted-foreground">
-              Manage organizational roles and department structure
+              Manage organizational structure, roles, and permissions
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Building className="h-3 w-3" />
+              {departments.length} Departments
+            </Badge>
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Shield className="h-3 w-3" />
+              {roles.length} Roles
+            </Badge>
           </div>
         </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="roles" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Roles ({roles.length})
-          </TabsTrigger>
-          <TabsTrigger value="departments" className="flex items-center gap-2">
-            <Building className="h-4 w-4" />
-            Departments ({departments.length})
-          </TabsTrigger>
-        </TabsList>
+        {/* Main Content */}
+        <Tabs defaultValue="departments" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="departments" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Departments
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Roles & Permissions
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Roles Tab */}
-        <TabsContent value="roles" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Roles</CardTitle>
-                  <CardDescription>
-                    Manage user roles and permissions
-                  </CardDescription>
+          {/* Departments Tab */}
+          <TabsContent value="departments" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Department Management
+                  </CardTitle>
+                  <Button 
+                    onClick={() => setIsAddingDepartment(true)}
+                    disabled={user.role !== 'owner' && user.role !== 'admin'}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Department
+                  </Button>
                 </div>
-                <Button onClick={handleCreateRole}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Role
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Role Filters */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search roles..."
-                    value={roleFilters.search}
-                    onChange={(e) => updateRoleFilters({ search: e.target.value })}
-                    className="pl-10"
-                  />
-                </div>
-                <Select
-                  value={roleFilters.status}
-                  onValueChange={(value) => updateRoleFilters({ status: value as any })}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="active">Active Only</SelectItem>
-                    <SelectItem value="inactive">Inactive Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Roles Table */}
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Permissions</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Users</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRoles.map((role) => (
-                      <TableRow key={role.id}>
-                        <TableCell className="font-medium">{role.name}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
-                          {role.description}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {role.permissions.slice(0, 2).map((permission) => (
-                              <Badge key={permission} variant="secondary" className="text-xs">
-                                {permission}
-                              </Badge>
-                            ))}
-                            {role.permissions.length > 2 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{role.permissions.length - 2} more
-                              </Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Departments List */}
+                  <div className="space-y-3">
+                    {departments.map((department) => (
+                      <div key={department.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                            <Building className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{department.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {department.description || 'No description provided'}
+                            </p>
+                            {department.manager && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <UserCheck className="h-3 w-3 text-green-600" />
+                                <span className="text-xs text-muted-foreground">
+                                  Manager: {department.manager.first_name} {department.manager.last_name}
+                                </span>
+                              </div>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            role.level === 'admin' ? 'destructive' :
-                            role.level === 'manager' ? 'default' : 'secondary'
-                          }>
-                            {role.level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={role.isActive ? 'default' : 'secondary'}>
-                            {role.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">{role.assignedUsers}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditRole(role)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleToggleRoleStatus(role)}>
-                                {role.isActive ? (
-                                  <>
-                                    <AlertTriangle className="mr-2 h-4 w-4" />
-                                    Deactivate
-                                  </>
-                                ) : (
-                                  <>
-                                    <Shield className="mr-2 h-4 w-4" />
-                                    Activate
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteRole(role)}
-                                className="text-destructive"
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {department.budget && (
+                            <Badge variant="outline" className="font-mono">
+                              ${department.budget.toLocaleString()}
+                            </Badge>
+                          )}
+                          {(user.role === 'owner' || user.role === 'admin') && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingDepartment(department);
+                                  setDepartmentForm({
+                                    name: department.name,
+                                    description: department.description || "",
+                                    managerId: department.manager_id || "none",
+                                    budget: department.budget?.toString() || "",
+                                  });
+                                }}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Departments Tab */}
-        <TabsContent value="departments" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Departments</CardTitle>
-                  <CardDescription>
-                    Manage organizational departments and structure
-                  </CardDescription>
-                </div>
-                <Button onClick={handleCreateDepartment}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Department
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Department Filters */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search departments..."
-                    value={departmentFilters.search}
-                    onChange={(e) => updateDepartmentFilters({ search: e.target.value })}
-                    className="pl-10"
-                  />
-                </div>
-                <Select
-                  value={departmentFilters.status}
-                  onValueChange={(value) => updateDepartmentFilters({ status: value as any })}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="active">Active Only</SelectItem>
-                    <SelectItem value="inactive">Inactive Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Departments Table */}
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Head</TableHead>
-                      <TableHead>Parent Department</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Budget</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Employees</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredDepartments.map((department) => (
-                      <TableRow key={department.id}>
-                        <TableCell className="font-medium">{department.name}</TableCell>
-                        <TableCell>
-                          {department.headOfDepartment || (
-                            <span className="text-muted-foreground">Not assigned</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {department.parentDepartmentId ? (
-                            departments.find(d => d.id === department.parentDepartmentId)?.name || 'Unknown'
-                          ) : (
-                            <span className="text-muted-foreground">Root department</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {department.location || (
-                            <span className="text-muted-foreground">Not specified</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {department.budget ? formatCurrency(department.budget) : (
-                            <span className="text-muted-foreground">Not set</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={department.isActive ? 'default' : 'secondary'}>
-                            {department.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">{department.userCount}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
+                                <Edit className="h-3 w-3" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditDepartment(department)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleToggleDepartmentStatus(department)}>
-                                {department.isActive ? (
-                                  <>
-                                    <AlertTriangle className="mr-2 h-4 w-4" />
-                                    Deactivate
-                                  </>
-                                ) : (
-                                  <>
-                                    <Building className="mr-2 h-4 w-4" />
-                                    Activate
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteDepartment(department)}
-                                className="text-destructive"
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setItemToDelete({ type: 'department', id: department.id, name: department.name });
+                                  setDeleteConfirmOpen(true);
+                                }}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    
+                    {departments.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Building className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No departments found. Create your first department to get started.</p>
+                      </div>
+                    )}
+                  </div>
 
-      {/* Role Form Dialog */}
-      <RoleForm
-        isOpen={isRoleFormOpen}
-        onClose={() => setIsRoleFormOpen(false)}
-        onSubmit={handleRoleSubmit}
-        departments={departments}
-        role={selectedRole}
-        loading={rolesLoading}
-      />
+                  {/* Add Department Form */}
+                  {isAddingDepartment && (
+                    <Card className="border-dashed">
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="dept-name">Department Name *</Label>
+                              <Input
+                                id="dept-name"
+                                value={departmentForm.name}
+                                onChange={(e) => setDepartmentForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="e.g. Information Technology"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="dept-manager">Department Manager</Label>
+                              <Select 
+                                value={departmentForm.managerId} 
+                                onValueChange={(value) => setDepartmentForm(prev => ({ ...prev, managerId: value === "none" ? "" : value }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select manager (optional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No manager assigned</SelectItem>
+                                  {members.map((member) => (
+                                    <SelectItem key={member.id} value={member.id}>
+                                      {member.first_name} {member.last_name} ({member.email})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="dept-description">Description</Label>
+                            <Textarea
+                              id="dept-description"
+                              value={departmentForm.description}
+                              onChange={(e) => setDepartmentForm(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Brief description of this department's responsibilities"
+                              rows={3}
+                            />
+                          </div>
 
-      {/* Department Form Dialog */}
-      <DepartmentForm
-        isOpen={isDepartmentFormOpen}
-        onClose={() => setIsDepartmentFormOpen(false)}
-        onSubmit={handleDepartmentSubmit}
-        departments={departments}
-        department={selectedDepartment}
-        loading={departmentsLoading}
-      />
+                          <div className="space-y-2">
+                            <Label htmlFor="dept-budget">Annual Budget (USD)</Label>
+                            <Input
+                              id="dept-budget"
+                              type="number"
+                              value={departmentForm.budget}
+                              onChange={(e) => setDepartmentForm(prev => ({ ...prev, budget: e.target.value }))}
+                              placeholder="e.g. 500000"
+                            />
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleCreateDepartment}
+                              disabled={!departmentForm.name.trim()}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Create Department
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => {
+                                setIsAddingDepartment(false);
+                                setDepartmentForm({ name: "", description: "", managerId: "", budget: "" });
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Edit Department Form */}
+                  {editingDepartment && (
+                    <Card className="border-dashed border-orange-200 bg-orange-50/50">
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-orange-700 mb-4">
+                            <Edit className="h-4 w-4" />
+                            <span className="font-medium">Editing: {editingDepartment.name}</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-dept-name">Department Name *</Label>
+                              <Input
+                                id="edit-dept-name"
+                                value={departmentForm.name}
+                                onChange={(e) => setDepartmentForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Department name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-dept-manager">Department Manager</Label>
+                              <Select 
+                                value={departmentForm.managerId} 
+                                onValueChange={(value) => setDepartmentForm(prev => ({ ...prev, managerId: value === "none" ? "" : value }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select manager" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No manager assigned</SelectItem>
+                                  {members.map((member) => (
+                                    <SelectItem key={member.id} value={member.id}>
+                                      {member.first_name} {member.last_name} ({member.email})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-dept-description">Description</Label>
+                            <Textarea
+                              id="edit-dept-description"
+                              value={departmentForm.description}
+                              onChange={(e) => setDepartmentForm(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Department description"
+                              rows={3}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-dept-budget">Annual Budget (USD)</Label>
+                            <Input
+                              id="edit-dept-budget"
+                              type="number"
+                              value={departmentForm.budget}
+                              onChange={(e) => setDepartmentForm(prev => ({ ...prev, budget: e.target.value }))}
+                              placeholder="Department budget"
+                            />
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleUpdateDepartment}
+                              disabled={!departmentForm.name.trim()}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Update Department
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => {
+                                setEditingDepartment(null);
+                                setDepartmentForm({ name: "", description: "", managerId: "", budget: "" });
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Roles Tab */}
+          <TabsContent value="roles" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Role Management
+                  </CardTitle>
+                  <Button 
+                    onClick={() => setIsAddingRole(true)}
+                    disabled={user.role !== 'owner'}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Custom Role
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Roles List */}
+                  <div className="space-y-3">
+                    {roles.map((role) => (
+                      <div key={role.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            role.is_system_role ? 'bg-purple-100' : 'bg-green-100'
+                          }`}>
+                            <Shield className={`h-5 w-5 ${
+                              role.is_system_role ? 'text-purple-600' : 'text-green-600'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold">{role.name}</h3>
+                              {role.is_system_role && <Badge variant="secondary">System</Badge>}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {role.description || 'No description provided'}
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {Object.entries(role.permissions).map(([permission, enabled]) => 
+                                enabled && (
+                                  <Badge key={permission} variant="outline" className="text-xs">
+                                    {permission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  </Badge>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {user.role === 'owner' && !role.is_system_role && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingRole(role);
+                                  setRoleForm({
+                                    name: role.name,
+                                    description: role.description || "",
+                                    permissions: {
+                                      admin: role.permissions.admin || false,
+                                      manage_users: role.permissions.manage_users || false,
+                                      manage_departments: role.permissions.manage_departments || false,
+                                      manage_roles: role.permissions.manage_roles || false,
+                                      manage_organization: role.permissions.manage_organization || false,
+                                      manage_documents: role.permissions.manage_documents || false,
+                                      view_reports: role.permissions.view_reports || false,
+                                    },
+                                  });
+                                }}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setItemToDelete({ type: 'role', id: role.id, name: role.name });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {roles.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No roles found. System roles will be created automatically.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Role Form */}
+                  {isAddingRole && (
+                    <Card className="border-dashed">
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="role-name">Role Name *</Label>
+                              <Input
+                                id="role-name"
+                                value={roleForm.name}
+                                onChange={(e) => setRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="e.g. Project Manager"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="role-description">Description</Label>
+                              <Input
+                                id="role-description"
+                                value={roleForm.description}
+                                onChange={(e) => setRoleForm(prev => ({ ...prev, description: e.target.value }))}
+                                placeholder="Brief description of this role"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <Label>Permissions</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/20">
+                              {Object.entries(roleForm.permissions).map(([permission, enabled]) => (
+                                <div key={permission} className="flex items-center space-x-3">
+                                  <Checkbox
+                                    id={permission}
+                                    checked={enabled}
+                                    onCheckedChange={(checked) => 
+                                      setRoleForm(prev => ({
+                                        ...prev,
+                                        permissions: {
+                                          ...prev.permissions,
+                                          [permission]: checked === true
+                                        }
+                                      }))
+                                    }
+                                  />
+                                  <Label htmlFor={permission} className="text-sm cursor-pointer">
+                                    {permission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleCreateRole}
+                              disabled={!roleForm.name.trim()}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Create Role
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => {
+                                setIsAddingRole(false);
+                                setRoleForm({
+                                  name: "",
+                                  description: "",
+                                  permissions: {
+                                    admin: false,
+                                    manage_users: false,
+                                    manage_departments: false,
+                                    manage_roles: false,
+                                    manage_organization: false,
+                                    manage_documents: false,
+                                    view_reports: false,
+                                  },
+                                });
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Edit Role Form */}
+                  {editingRole && (
+                    <Card className="border-dashed border-orange-200 bg-orange-50/50">
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-orange-700 mb-4">
+                            <Edit className="h-4 w-4" />
+                            <span className="font-medium">Editing: {editingRole.name}</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-role-name">Role Name *</Label>
+                              <Input
+                                id="edit-role-name"
+                                value={roleForm.name}
+                                onChange={(e) => setRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Role name"
+                                disabled={editingRole.is_system_role}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-role-description">Description</Label>
+                              <Input
+                                id="edit-role-description"
+                                value={roleForm.description}
+                                onChange={(e) => setRoleForm(prev => ({ ...prev, description: e.target.value }))}
+                                placeholder="Role description"
+                                disabled={editingRole.is_system_role}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <Label>Permissions</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/20">
+                              {Object.entries(roleForm.permissions).map(([permission, enabled]) => (
+                                <div key={permission} className="flex items-center space-x-3">
+                                  <Checkbox
+                                    id={`edit-${permission}`}
+                                    checked={enabled}
+                                    disabled={editingRole.is_system_role}
+                                    onCheckedChange={(checked) => 
+                                      setRoleForm(prev => ({
+                                        ...prev,
+                                        permissions: {
+                                          ...prev.permissions,
+                                          [permission]: checked === true
+                                        }
+                                      }))
+                                    }
+                                  />
+                                  <Label htmlFor={`edit-${permission}`} className="text-sm cursor-pointer">
+                                    {permission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleUpdateRole}
+                              disabled={!roleForm.name.trim() || editingRole.is_system_role}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Update Role
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => {
+                                setEditingRole(null);
+                                setRoleForm({
+                                  name: "",
+                                  description: "",
+                                  permissions: {
+                                    admin: false,
+                                    manage_users: false,
+                                    manage_departments: false,
+                                    manage_roles: false,
+                                    manage_organization: false,
+                                    manage_documents: false,
+                                    view_reports: false,
+                                  },
+                                });
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                Confirm Deletion
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
+                {itemToDelete?.type === 'department' && " Users assigned to this department will be unassigned."}
+                {itemToDelete?.type === 'role' && " Users with this role will need to be reassigned."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteConfirm}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete {itemToDelete?.type}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
