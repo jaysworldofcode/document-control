@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,10 +51,10 @@ import {
   History,
   UserCheck,
   ClipboardList,
-  Send
+  Send,
+  Loader2
 } from "lucide-react";
-import { MOCK_PROJECTS } from "@/constants/project.constants";
-import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
+import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project } from "@/types/project.types";
 import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
 import { AddDocumentModal } from "@/components/forms/add-document-modal";
@@ -86,6 +86,12 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(3); // Mock unread count
+  
+  // Data state
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectDocuments, setProjectDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Mock current user - in real app this would come from auth context
   const currentUser = {
@@ -93,6 +99,47 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     name: "John Doe",
     email: "john.doe@company.com"
   };
+
+  // Fetch project data
+  useEffect(() => {
+    const fetchProjectData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch project details
+        const projectResponse = await fetch(`/api/projects/${projectId}`);
+        if (!projectResponse.ok) {
+          if (projectResponse.status === 404) {
+            setError('Project not found');
+            return;
+          }
+          throw new Error('Failed to fetch project');
+        }
+        const projectData = await projectResponse.json();
+        setProject(projectData);
+
+        // Fetch project documents
+        const documentsResponse = await fetch(`/api/documents?projectId=${projectId}`);
+        if (documentsResponse.ok) {
+          const documentsData = await documentsResponse.json();
+          setProjectDocuments(documentsData);
+        } else {
+          // If documents API fails, just set empty array (documents table might be empty)
+          setProjectDocuments([]);
+        }
+      } catch (error) {
+        console.error('Error fetching project data:', error);
+        setError('Failed to load project data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (projectId) {
+      fetchProjectData();
+    }
+  }, [projectId]);
 
   const handleDownloadDocument = (document: Document) => {
     // In a real app, this would download the actual file
@@ -135,18 +182,6 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       throw error;
     }
   };
-
-  // Find the project
-  const project = useMemo(() => 
-    MOCK_PROJECTS.find(p => p.id === projectId), 
-    [projectId]
-  );
-
-  // Filter documents for this project
-  const projectDocuments = useMemo(() => 
-    MOCK_DOCUMENTS.filter(doc => doc.projectId === projectId),
-    [projectId]
-  );
 
   // Filter documents based on search and status
   const filteredDocuments = useMemo(() => {
@@ -200,12 +235,24 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     });
   };
 
-  if (!project) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 className="h-16 w-16 animate-spin text-muted-foreground" />
+        <h2 className="text-2xl font-semibold">Loading Project...</h2>
+        <p className="text-muted-foreground">Please wait while we fetch the project data.</p>
+      </div>
+    );
+  }
+
+  if (error || !project) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <FileText className="h-16 w-16 text-muted-foreground" />
-        <h2 className="text-2xl font-semibold">Project Not Found</h2>
-        <p className="text-muted-foreground">The requested project could not be found.</p>
+        <h2 className="text-2xl font-semibold">{error || 'Project Not Found'}</h2>
+        <p className="text-muted-foreground">
+          {error || 'The requested project could not be found.'}
+        </p>
         <Button onClick={() => router.push("/projects")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Projects
@@ -368,7 +415,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">End Date</label>
-                    <p className="mt-1">{formatDate(project.endDate)}</p>
+                    <p className="mt-1">{project.endDate ? formatDate(project.endDate) : 'Not set'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -714,8 +761,43 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onSubmit={async (data: DocumentUploadData) => {
-          console.log("Uploading document:", data);
-          // Here you would call the API to upload the document
+          try {
+            console.log("Uploading document:", data);
+            
+            // In a real implementation, you would upload the file to SharePoint/storage first
+            // For now, we'll create a document record with mock file data
+            const documentData = {
+              projectId: projectId,
+              title: data.file.name.replace(/\.[^/.]+$/, ""), // Remove extension for title
+              fileName: data.file.name,
+              fileType: data.file.name.split('.').pop()?.toLowerCase() || 'unknown',
+              fileSize: data.file.size,
+              sharePointPath: '', // Would be set after SharePoint upload
+              customFieldValues: data.customFieldValues
+            };
+
+            const response = await fetch('/api/documents', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(documentData),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to upload document');
+            }
+
+            const newDocument = await response.json();
+            
+            // Add the new document to the local state
+            setProjectDocuments(prev => [newDocument, ...prev]);
+            
+            setIsUploadModalOpen(false);
+          } catch (error) {
+            console.error("Failed to upload document:", error);
+            throw error;
+          }
         }}
         project={project}
       />

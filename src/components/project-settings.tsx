@@ -57,18 +57,28 @@ export function ProjectSettings({
   onDeleteProject, 
   loading = false 
 }: ProjectSettingsProps) {
+  const formatDateForInput = (dateString: string | null) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+    } catch {
+      return '';
+    }
+  };
+
   const [formData, setFormData] = useState({
-    name: project.name,
-    description: project.description,
-    status: project.status,
-    priority: project.priority,
-    client: project.client,
-    budget: project.budget,
-    startDate: project.startDate,
-    endDate: project.endDate,
-    sharePointFolderPath: project.sharePointConfig.folderPath,
-    sharePointExcelPath: project.sharePointConfig.excelSheetPath || '',
-    enableExcelLogging: project.sharePointConfig.isExcelLoggingEnabled,
+    name: project.name || '',
+    description: project.description || '',
+    status: project.status || 'planning',
+    priority: project.priority || 'medium',
+    client: project.client || '',
+    budget: project.budget || '',
+    startDate: formatDateForInput(project.startDate),
+    endDate: formatDateForInput(project.endDate),
+    sharePointFolderPath: project.sharePointConfig?.folderPath || '',
+    sharePointExcelPath: project.sharePointConfig?.excelSheetPath || '',
+    enableExcelLogging: project.sharePointConfig?.isExcelLoggingEnabled || false,
   });
 
   const [notifications, setNotifications] = useState({
@@ -124,8 +134,11 @@ export function ProjectSettings({
       newErrors.push('SharePoint Excel path is required when Excel logging is enabled');
     }
 
-    if (new Date(formData.startDate) > new Date(formData.endDate)) {
-      newErrors.push('Start date must be before end date');
+    // Only validate date comparison if both dates are provided
+    if (formData.startDate && formData.endDate) {
+      if (new Date(formData.startDate) > new Date(formData.endDate)) {
+        newErrors.push('Start date must be before end date');
+      }
     }
 
     setErrors(newErrors);
