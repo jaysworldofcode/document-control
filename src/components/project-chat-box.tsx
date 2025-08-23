@@ -30,8 +30,10 @@ import {
   Clock,
   CheckCheck
 } from "lucide-react";
-import { ChatMessage, NewChatMessage, ProjectChat, ChatParticipant, ChatReaction } from "@/types/chat.types";
+import { ChatMessage, NewChatMessage, ProjectChat, ChatParticipant, ChatReaction, UserAvatar } from "@/types/chat.types";
 import { useSupabaseRealtimeChat } from "@/hooks/useSupabaseRealtimeChat";
+import { useUserAvatars } from "@/hooks/useUserAvatars";
+import { AvatarDisplay } from "@/components/ui/avatar-display";
 
 interface ProjectChatBoxProps {
   projectId: string;
@@ -73,6 +75,9 @@ export function ProjectChatBox({
     onReactionUpdate
   } = useSupabaseRealtimeChat(projectId);
 
+  // Initialize user avatars hook
+  const { userAvatars, fetchUserAvatars } = useUserAvatars();
+
   // Set up callback handlers
   useEffect(() => {
     if (onNewMessage) {
@@ -103,6 +108,22 @@ export function ProjectChatBox({
       });
     }
   }, [onMessageDelete]);
+
+  // Fetch user avatars when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const userIds = messages.map(msg => msg.userId);
+      fetchUserAvatars(userIds);
+    }
+  }, [messages, fetchUserAvatars]);
+
+  // Fetch user avatars when participants change
+  useEffect(() => {
+    if (participants.length > 0) {
+      const userIds = participants.map(p => p.userId);
+      fetchUserAvatars(userIds);
+    }
+  }, [participants, fetchUserAvatars]);
 
   useEffect(() => {
     if (onReactionUpdate) {
@@ -390,22 +411,26 @@ export function ProjectChatBox({
           <CardContent className="p-0">
             {/* Participants Bar */}
             <div className="p-2 bg-gray-50 border-b">
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {participants.map((participant) => (
-                  <div key={participant.userId} className="flex items-center gap-1 shrink-0">
-                    <div className="relative">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="text-xs">
-                          {getInitials(participant.userName || 'Unknown')}
-                        </AvatarFallback>
-                      </Avatar>
-                      {participant.isOnline && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-600 truncate max-w-16">
-                      {participant.userName.split(' ')[0]}
-                    </span>
+              <div className="flex items-center gap-2">
+                {participants.slice(0, 3).map((participant, index) => (
+                  <div key={participant.userId} className="relative">
+                    <AvatarDisplay
+                      avatarUrls={{
+                        full: userAvatars.get(participant.userId)?.avatarUrl,
+                        thumbnail: userAvatars.get(participant.userId)?.avatarThumbnailUrl
+                      }}
+                      size="small"
+                      alt={participant.userName}
+                      className="h-6 w-6"
+                      fallbackIcon={
+                        <span className="text-xs font-medium text-primary">
+                          {userAvatars.get(participant.userId)?.initials || getInitials(participant.userName)}
+                        </span>
+                      }
+                    />
+                    {participant.isOnline && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -432,14 +457,24 @@ export function ProjectChatBox({
                 messages.map((message) => {
                   const isOwnMessage = message.userId === currentUser.id;
                   const repliedMessage = message.replyTo ? messages.find(m => m.id === message.replyTo) : null;
+                  const userAvatar = userAvatars.get(message.userId);
                   
                   return (
                     <div key={message.id} className={`flex gap-2 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
-                      <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="text-xs">
-                          {getInitials(message.userName || 'Unknown')}
-                        </AvatarFallback>
-                      </Avatar>
+                      <AvatarDisplay
+                        avatarUrls={{
+                          full: userAvatar?.avatarUrl,
+                          thumbnail: userAvatar?.avatarThumbnailUrl
+                        }}
+                        size="small"
+                        alt={message.userName || 'User'}
+                        className="h-8 w-8 shrink-0"
+                        fallbackIcon={
+                          <span className="text-xs font-medium text-primary">
+                            {userAvatar?.initials || getInitials(message.userName || 'Unknown')}
+                          </span>
+                        }
+                      />
                       
                       <div className={`flex-1 max-w-[220px] ${isOwnMessage ? 'text-right' : ''}`}>
                         <div className={`inline-block p-3 rounded-lg ${

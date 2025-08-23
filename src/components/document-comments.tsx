@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarDisplay } from "@/components/ui/avatar-display";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ import {
   Download
 } from "lucide-react";
 import { DocumentComment, NewCommentData, CommentReaction } from "@/types/comment.types";
+import { useUserAvatars } from "@/hooks/useUserAvatars";
 
 interface DocumentCommentsProps {
   documentId: string;
@@ -58,6 +59,15 @@ export function DocumentComments({
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize user avatars hook
+  const { userAvatars, fetchUserAvatars } = useUserAvatars();
+
+  // Fetch user avatars when comments change
+  React.useEffect(() => {
+    const userIds = [...new Set([...comments.map(comment => comment.userId), currentUserId])];
+    fetchUserAvatars(userIds);
+  }, [comments, currentUserId, fetchUserAvatars]);
 
   // Group comments by parent/replies
   const commentTree = comments.reduce((acc, comment) => {
@@ -181,11 +191,20 @@ export function DocumentComments({
 
   const CommentItem = ({ comment, isReply = false }: { comment: DocumentComment & { replies?: DocumentComment[] }; isReply?: boolean }) => (
     <div className={`flex gap-3 ${isReply ? 'ml-12 mt-3' : ''}`}>
-      <Avatar className="h-8 w-8">
-        <AvatarFallback className="text-xs">
-          {getInitials(comment.userName)}
-        </AvatarFallback>
-      </Avatar>
+              <AvatarDisplay
+          avatarUrls={{
+            full: userAvatars.get(comment.userId)?.avatarUrl,
+            thumbnail: userAvatars.get(comment.userId)?.avatarThumbnailUrl
+          }}
+        size="small"
+        alt={comment.userName}
+        className="h-8 w-8"
+                            fallbackIcon={
+                      <span className="text-xs font-medium text-primary">
+                        {userAvatars.get(comment.userId)?.initials || getInitials(comment.userName)}
+                      </span>
+                    }
+      />
       
       <div className="flex-1 space-y-2">
         <Card className="bg-muted/30">
@@ -331,11 +350,20 @@ export function DocumentComments({
             <Card>
               <CardContent className="p-3">
                 <div className="flex gap-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-xs">
-                      {getInitials(currentUserName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarDisplay
+                    avatarUrls={{
+                      full: userAvatars.get(currentUserId)?.avatarUrl,
+                      thumbnail: userAvatars.get(currentUserId)?.avatarThumbnailUrl
+                    }}
+                    size="small"
+                    alt={currentUserName}
+                    className="h-8 w-8"
+                    fallbackIcon={
+                      <span className="text-xs font-medium text-primary">
+                        {userAvatars.get(currentUserId)?.initials || getInitials(currentUserName)}
+                      </span>
+                    }
+                  />
                   <div className="flex-1 space-y-2">
                     <Textarea
                       value={newComment}
@@ -390,11 +418,20 @@ export function DocumentComments({
         <Card>
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">
-                  {getInitials(currentUserName)}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarDisplay
+                avatarUrls={{
+                  full: userAvatars.get(currentUserId)?.avatarUrl,
+                  thumbnail: userAvatars.get(currentUserId)?.avatarThumbnailUrl
+                }}
+                size="small"
+                alt={currentUserName}
+                className="h-8 w-8"
+                fallbackIcon={
+                  <span className="text-xs font-medium text-primary">
+                    {userAvatars.get(currentUserId)?.initials || getInitials(currentUserName)}
+                  </span>
+                }
+              />
               <div className="flex-1 space-y-3">
                 <Textarea
                   value={newComment}
