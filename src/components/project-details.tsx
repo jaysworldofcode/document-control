@@ -72,6 +72,7 @@ import { ProjectSettings } from "@/components/project-settings";
 import { ProjectChatBox } from "@/components/project-chat-box";
 import { ChatToggleButton } from "@/components/chat-toggle-button";
 import { useAuth } from "@/contexts/AuthContext";
+import { documentLogging } from "@/utils/document-logging";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -159,8 +160,16 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     }
   }, [projectId]);
 
-  const handleDownloadDocument = (document: Document) => {
+  const handleDownloadDocument = async (document: Document) => {
     if (document.sharePointPath) {
+      // Log the download activity
+      await documentLogging.logDownload(
+        document.id, 
+        document.version, 
+        document.fileName, 
+        document.fileSize
+      );
+      
       // Use the SharePoint path to download the document
       window.open(document.sharePointPath, '_blank');
     } else {
@@ -174,7 +183,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     }
   };
 
-  const handleOpenInSharePoint = (document: Document) => {
+  const handleOpenInSharePoint = async (document: Document) => {
+    // Log the view activity
+    await documentLogging.logView(document.id, document.version);
+    
     if (document.sharePointPath) {
       // Use the actual SharePoint URL stored in the database
       window.open(document.sharePointPath, '_blank');
@@ -190,6 +202,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     if (!sendingForApprovalDocument) return;
     
     try {
+      // Log the status change activity
+      await documentLogging.logStatusChange(
+        sendingForApprovalDocument.id,
+        sendingForApprovalDocument.status,
+        'pending_review',
+        comments
+      );
+      
       // In a real app, this would call an API to create the approval workflow
       console.log("Sending document for approval:", {
         document: sendingForApprovalDocument,
@@ -245,6 +265,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       const result = await response.json();
       const newVersion = result.version;
       
+      // Log the version upload activity
+      await documentLogging.logVersionUpload(
+        uploadingVersionDocument.id,
+        newVersion.version,
+        data.file.name,
+        data.file.size
+      );
+      
       // Update the document in local state with new version info
       setProjectDocuments(prev => prev.map(doc => 
         doc.id === uploadingVersionDocument.id 
@@ -289,20 +317,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   // Document statistics
   const documentStats = useMemo(() => {
     const stats = {
-      total: projectDocuments.length,
-      draft: 0,
-      pending_review: 0,
-      under_review: 0,
-      approved: 0,
-      final: 0,
-      checked_out: 0,
-      rejected: 0,
-      archived: 0
+      total: projectDocuments.length
     };
-
-    projectDocuments.forEach(doc => {
-      stats[doc.status]++;
-    });
 
     return stats;
   }, [projectDocuments]);
@@ -384,7 +400,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <CardContent>
             <div className="text-2xl font-bold">{documentStats.total}</div>
             <p className="text-xs text-muted-foreground">
-              {documentStats.approved + documentStats.final} approved
+              Documents in project
             </p>
           </CardContent>
         </Card>
@@ -396,7 +412,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {documentStats.pending_review + documentStats.under_review}
+              {projectDocuments.filter(doc => doc.status === 'pending_review' || doc.status === 'under_review').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Needs attention
@@ -615,20 +631,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           </div>
 
           {/* Document Status Summary */}
-          <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8">
-            {Object.entries(documentStats).filter(([key]) => key !== 'total').map(([status, count]) => (
-              <Card key={status}>
-                <CardContent className="p-3">
-                  <div className="text-center">
-                    <div className="text-lg font-bold">{count}</div>
-                    <div className="text-xs text-muted-foreground capitalize">
-                      {status.replace('_', ' ')}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* Status dashboard cards removed - no longer needed */}
 
           {/* Documents Table */}
           <Card>
@@ -872,6 +875,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
 
             const result = await response.json();
             const newDocument = result.document;
+            
+            // Log the document upload activity
+            await documentLogging.logUpload(
+              newDocument.id,
+              newDocument.version,
+              newDocument.fileName,
+              newDocument.fileSize
+            );
             
             // Add the new document to the local state
             setProjectDocuments(prev => [newDocument, ...prev]);

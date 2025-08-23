@@ -451,7 +451,7 @@ export function TeamMemberManagement({
               </Select>
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Role</Label>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
                 <SelectTrigger>
@@ -466,7 +466,7 @@ export function TeamMemberManagement({
                   <SelectItem value="technical writer">Technical Writer</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
 
             {selectedUserId && (
               <Card>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Document } from "@/types/document.types";
 import { DocumentLog, DocumentLogAction } from "@/types/document-log.types";
-import { getDocumentLogs, LOG_ACTION_CONFIG } from "@/constants/document-log.constants";
+import { LOG_ACTION_CONFIG } from "@/constants/document-log.constants";
 import { 
   Search, 
   Filter,
@@ -45,7 +45,9 @@ import {
   FolderOpen,
   Copy,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 
 interface DocumentLogsModalProps {
@@ -76,16 +78,43 @@ const actionIcons: Record<DocumentLogAction, any> = {
 export function DocumentLogsModal({ isOpen, onClose, document }: DocumentLogsModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [actionFilter, setActionFilter] = useState<DocumentLogAction | "all">("all");
+  const [logs, setLogs] = useState<DocumentLog[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get logs for the document
-  const documentLogs = useMemo(() => {
-    if (!document) return [];
-    return getDocumentLogs(document.id);
-  }, [document]);
+  // Fetch logs when modal opens
+  useEffect(() => {
+    if (isOpen && document) {
+      fetchLogs();
+    }
+  }, [isOpen, document]);
+
+  const fetchLogs = async () => {
+    if (!document) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/documents/${document.id}/logs`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch activity logs');
+      }
+      
+      const data = await response.json();
+      setLogs(data.logs || []);
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load activity logs');
+      setLogs([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Apply filters
   const filteredLogs = useMemo(() => {
-    return documentLogs.filter(log => {
+    return logs.filter(log => {
       const matchesSearch = 
         log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.details.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,7 +124,7 @@ export function DocumentLogsModal({ isOpen, onClose, document }: DocumentLogsMod
       
       return matchesSearch && matchesAction;
     });
-  }, [documentLogs, searchTerm, actionFilter]);
+  }, [logs, searchTerm, actionFilter]);
 
   // Group logs by date
   const groupedLogs = useMemo(() => {
@@ -210,6 +239,21 @@ export function DocumentLogsModal({ isOpen, onClose, document }: DocumentLogsMod
             </div>
 
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLogs}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2">
@@ -240,103 +284,140 @@ export function DocumentLogsModal({ isOpen, onClose, document }: DocumentLogsMod
             </div>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">Error loading logs: {error}</span>
+              </div>
+            </div>
+          )}
+
           {/* Results Summary */}
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Showing {filteredLogs.length} of {documentLogs.length} log entries</span>
+            <span>Showing {filteredLogs.length} of {logs.length} log entries</span>
             <span>
-              {documentLogs.length > 0 && (
-                <>Latest activity: {formatTime(documentLogs[0]?.timestamp)}</>
+              {logs.length > 0 && (
+                <>Latest activity: {formatTime(logs[0]?.timestamp)}</>
               )}
             </span>
           </div>
 
           {/* Logs Timeline */}
           <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-6">
-              {Object.entries(groupedLogs).map(([date, logs]) => (
-                <div key={date} className="space-y-4">
-                  {/* Date Header */}
-                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-2">
-                    <h3 className="font-semibold text-sm text-muted-foreground">
-                      {formatDate(logs[0].timestamp)}
-                    </h3>
-                  </div>
-
-                  {/* Logs for this date */}
-                  <div className="space-y-3 pl-4">
-                    {logs.map((log, index) => {
-                      const ActionIcon = actionIcons[log.action];
-                      const config = getActionConfig(log.action);
-                      const details = renderLogDetails(log);
-                      
-                      return (
-                        <div key={log.id} className="relative">
-                          {/* Timeline line */}
-                          {index !== logs.length - 1 && (
-                            <div className="absolute left-4 top-8 w-px h-12 bg-border" />
-                          )}
-                          
-                          {/* Log entry */}
-                          <div className="flex gap-3">
-                            {/* Icon */}
-                            <div className={`w-8 h-8 rounded-full border-2 border-background bg-muted flex items-center justify-center ${config.color}`}>
-                              <ActionIcon className="h-4 w-4" />
-                            </div>
-                            
-                            {/* Content */}
-                            <div className="flex-1 min-w-0 pb-4">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs">
-                                  {config.label}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatTime(log.timestamp)}
-                                </span>
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <p className="text-sm font-medium">
-                                  {log.details.description}
-                                </p>
-                                
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <User className="h-3 w-3" />
-                                  <span>{log.userName}</span>
-                                </div>
-                                
-                                {details.length > 0 && (
-                                  <div className="text-xs text-muted-foreground space-y-1">
-                                    {details.map((detail, idx) => (
-                                      <div key={idx} className="flex items-center gap-1">
-                                        <span className="w-1 h-1 bg-muted-foreground rounded-full" />
-                                        <span>{detail}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                  <span className="text-muted-foreground">Loading activity logs...</span>
                 </div>
-              ))}
-            </div>
-
-            {/* Empty State */}
-            {filteredLogs.length === 0 && (
+              </div>
+            ) : logs.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mx-auto h-24 w-24 rounded-full bg-muted flex items-center justify-center mb-4">
                   <History className="h-12 w-12 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No logs found</h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchTerm || actionFilter !== "all"
-                    ? "Try adjusting your search or filter criteria."
-                    : "No activity has been recorded for this document yet."}
+                  No activity has been recorded for this document yet.
                 </p>
+                <Button onClick={fetchLogs} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto h-24 w-24 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Search className="h-12 w-12 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No matching logs</h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your search or filter criteria.
+                </p>
+                <Button 
+                  onClick={() => {
+                    setSearchTerm("");
+                    setActionFilter("all");
+                  }} 
+                  variant="outline"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(groupedLogs).map(([date, logs]) => (
+                  <div key={date} className="space-y-4">
+                    {/* Date Header */}
+                    <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-2">
+                      <h3 className="font-semibold text-sm text-muted-foreground">
+                        {formatDate(logs[0].timestamp)}
+                      </h3>
+                    </div>
+
+                    {/* Logs for this date */}
+                    <div className="space-y-3 pl-4">
+                      {logs.map((log, index) => {
+                        const ActionIcon = actionIcons[log.action];
+                        const config = getActionConfig(log.action);
+                        const details = renderLogDetails(log);
+                        
+                        return (
+                          <div key={log.id} className="relative">
+                            {/* Timeline line */}
+                            {index !== logs.length - 1 && (
+                              <div className="absolute left-4 top-8 w-px h-12 bg-border" />
+                            )}
+                            
+                            {/* Log entry */}
+                            <div className="flex gap-3">
+                              {/* Icon */}
+                              <div className={`w-8 h-8 rounded-full border-2 border-background bg-muted flex items-center justify-center ${config.color}`}>
+                                <ActionIcon className="h-4 w-4" />
+                              </div>
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0 pb-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {config.label}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatTime(log.timestamp)}
+                                  </span>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <p className="text-sm font-medium">
+                                    {log.details.description}
+                                  </p>
+                                  
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <User className="h-3 w-3" />
+                                    <span>{log.userName}</span>
+                                  </div>
+                                  
+                                  {details.length > 0 && (
+                                    <div className="text-xs text-muted-foreground space-y-1">
+                                      {details.map((detail, idx) => (
+                                        <div key={idx} className="flex items-center gap-1">
+                                          <span className="w-1 h-1 bg-muted-foreground rounded-full" />
+                                          <span>{detail}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </ScrollArea>
