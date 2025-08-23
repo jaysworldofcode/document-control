@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -76,6 +77,7 @@ interface ProjectDetailsProps {
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all");
   const [activeTab, setActiveTab] = useState("overview");
@@ -154,20 +156,30 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   }, [projectId]);
 
   const handleDownloadDocument = (document: Document) => {
-    // In a real app, this would download the actual file
-    console.log("Downloading document:", document.fileName);
-    // Create a temporary link to simulate download
-    const link = window.document.createElement('a');
-    link.href = '#';
-    link.download = document.fileName;
-    link.click();
+    if (document.sharePointPath) {
+      // Use the SharePoint path to download the document
+      window.open(document.sharePointPath, '_blank');
+    } else {
+      // Fallback for documents without SharePoint path
+      console.log("No SharePoint path available for document:", document.fileName);
+      toast({
+        variant: "destructive",
+        title: "Download unavailable",
+        description: "This document is not available for download.",
+      });
+    }
   };
 
   const handleOpenInSharePoint = (document: Document) => {
-    // In a real app, this would construct the actual SharePoint URL
-    console.log("Opening in SharePoint:", document.fileName);
-    const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
-    window.open(sharePointUrl, '_blank');
+    if (document.sharePointPath) {
+      // Use the actual SharePoint URL stored in the database
+      window.open(document.sharePointPath, '_blank');
+    } else {
+      console.log("No SharePoint path available for document:", document.fileName);
+      // Fallback: construct a generic SharePoint URL (this should ideally not happen)
+      const fallbackUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
+      window.open(fallbackUrl, '_blank');
+    }
   };
 
   const handleSendForApproval = async (approvers: any[], comments?: string) => {
@@ -776,38 +788,47 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           try {
             console.log("Uploading document:", data);
             
-            // In a real implementation, you would upload the file to SharePoint/storage first
-            // For now, we'll create a document record with mock file data
-            const documentData = {
-              projectId: projectId,
-              title: data.file.name.replace(/\.[^/.]+$/, ""), // Remove extension for title
-              fileName: data.file.name,
-              fileType: data.file.name.split('.').pop()?.toLowerCase() || 'unknown',
-              fileSize: data.file.size,
-              sharePointPath: '', // Would be set after SharePoint upload
-              customFieldValues: data.customFieldValues
-            };
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('file', data.file);
+            formData.append('projectId', projectId);
+            formData.append('description', data.description || '');
+            formData.append('tags', JSON.stringify(data.tags || []));
+            formData.append('customFieldValues', JSON.stringify(data.customFieldValues || {}));
 
-            const response = await fetch('/api/documents', {
+            const response = await fetch('/api/documents/upload', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(documentData),
+              body: formData,
             });
 
             if (!response.ok) {
-              throw new Error('Failed to upload document');
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to upload document');
             }
 
-            const newDocument = await response.json();
+            const result = await response.json();
+            const newDocument = result.document;
             
             // Add the new document to the local state
             setProjectDocuments(prev => [newDocument, ...prev]);
             
+            // Show success message
+            toast({
+              title: "Document uploaded successfully",
+              description: `${data.file.name} has been uploaded to SharePoint and saved to the project.`,
+            });
+            
             setIsUploadModalOpen(false);
           } catch (error) {
             console.error("Failed to upload document:", error);
+            
+            // Show error message
+            toast({
+              variant: "destructive",
+              title: "Upload failed",
+              description: error instanceof Error ? error.message : "An unexpected error occurred while uploading the document.",
+            });
+            
             throw error;
           }
         }}
