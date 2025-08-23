@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
     }
 
-    // Get the workflow with steps
+    // Get the workflow with steps and attachments
     const { data: workflow, error } = await supabase
       .from('document_approval_workflows')
       .select(`
@@ -252,7 +252,8 @@ export async function GET(request: NextRequest) {
         requested_by_user:users!document_approval_workflows_requested_by_fkey(id, first_name, last_name, email),
         document_approval_steps(
           *,
-          approver:users(id, first_name, last_name, email)
+          approver:users(id, first_name, last_name, email),
+          attachments:document_rejection_attachments(*)
         )
       `)
       .eq('document_id', documentId)
@@ -432,6 +433,41 @@ export async function PUT(request: NextRequest) {
     };
 
     if (action === 'reject') {
+      // If rejected, handle file attachments first
+      if (files.length > 0) {
+        for (const file of files) {
+          // Upload file to Supabase storage
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('rejection-attachments')
+            .upload(`${documentId}/${userStep.id}/${file.name}`, file, {
+              contentType: file.type,
+              upsert: true
+            });
+
+          if (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            continue;
+          }
+
+          // Create attachment record
+          const { error: attachmentError } = await supabase
+            .from('document_rejection_attachments')
+            .insert({
+              step_id: userStep.id,
+              file_name: file.name,
+              file_size: file.size,
+              file_type: file.type,
+              storage_path: uploadData.path,
+              uploaded_by: user.userId
+            });
+
+          if (attachmentError) {
+            console.error('Error creating attachment record:', attachmentError);
+            continue;
+          }
+        }
+      }
+
       // If rejected, mark workflow as rejected
       workflowUpdate.overall_status = 'rejected';
       workflowUpdate.completed_at = now;

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useApprovalsCount } from "@/hooks/useApprovalsCount";
 import { cn } from "@/lib/utils";
 import { 
   Home, 
@@ -64,11 +65,13 @@ interface NavigationProps {
 
 export function Navigation({ className, onItemClick }: NavigationProps) {
   const pathname = usePathname();
+  const { count: approvalsCount, loading: loadingApprovals } = useApprovalsCount();
 
   return (
     <nav className={cn("flex flex-col space-y-1", className)}>
       {navigationItems.map((item) => {
         const Icon = item.icon;
+        const showCounter = item.href === '/approvals' && approvalsCount > 0;
         const isActive = pathname === item.href;
         
         return (
@@ -86,7 +89,12 @@ export function Navigation({ className, onItemClick }: NavigationProps) {
             )}
           >
             <Icon className="h-4 w-4" />
-            {item.title}
+            <span className="flex-1">{item.title}</span>
+            {showCounter && (
+              <span className="flex items-center justify-center min-w-[1.5rem] h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                {approvalsCount}
+              </span>
+            )}
           </Link>
         );
       })}

@@ -19,6 +19,7 @@ import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
 import { RejectDocumentModal } from "@/components/forms/reject-document-modal";
+import { ApproveDocumentModal } from "@/components/forms/approve-document-modal";
 import { MOCK_DOCUMENTS, DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
 import { MOCK_PROJECTS } from "@/constants/project.constants";
 import { Document } from "@/types/document.types";
@@ -131,16 +132,24 @@ export default function ApprovalsPage() {
     window.open(sharePointUrl, '_blank');
   };
 
-  const handleApproveDocument = async (document: Document) => {
+  const [approvingDocument, setApprovingDocument] = useState<Document | null>(null);
+
+  const handleApproveDocument = (document: Document) => {
+    setApprovingDocument(document);
+  };
+
+  const handleSubmitApproval = async (comments?: string) => {
+    if (!approvingDocument) return;
+    
     try {
-      const response = await fetch(`/api/documents/${document.id}/approvals`, {
+      const response = await fetch(`/api/documents/${approvingDocument.id}/approvals`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action: 'approve',
-          comments: '' // Could be enhanced to allow comments
+          comments
         }),
       });
 
@@ -164,20 +173,68 @@ export default function ApprovalsPage() {
     setRejectingDocument(document);
   };
 
-  const handleSubmitRejection = async (rejectionData: { reason: string; attachments?: File[] }) => {
+  const handleSubmitRejection = async (comments: string, files?: File[]) => {
     if (!rejectingDocument) return;
     
     try {
-      const response = await fetch(`/api/documents/${rejectingDocument.id}/approvals`, {
+      // First, reject the document
+      const rejectResponse = await fetch(`/api/documents/${rejectingDocument.id}/approvals`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action: 'reject',
-          comments: rejectionData.reason
-        }),
+          comments
+        })
       });
+
+      if (!rejectResponse.ok) {
+        const errorData = await rejectResponse.json();
+        throw new Error(errorData.error || 'Failed to reject document');
+      }
+
+      const rejectResult = await rejectResponse.json();
+
+      // If there are files, upload them
+      if (files && files.length > 0) {
+        // Get the step ID from the workflow
+        const { data: workflow } = await supabase
+          .from('document_approval_workflows')
+          .select(`
+            document_approval_steps(
+              id,
+              approver_id
+            )
+          `)
+          .eq('document_id', rejectingDocument.id)
+          .single();
+
+        const userStep = workflow.document_approval_steps.find(
+          (step: any) => step.approver_id === user.userId
+        );
+
+        if (userStep) {
+          const formData = new FormData();
+          files.forEach(file => {
+            formData.append('files', file);
+          });
+
+          const attachmentResponse = await fetch(
+            `/api/documents/${rejectingDocument.id}/approvals/${userStep.id}/attachments`,
+            {
+              method: 'POST',
+              body: formData
+            }
+          );
+
+          if (!attachmentResponse.ok) {
+            console.error('Failed to upload attachments:', await attachmentResponse.text());
+          }
+        }
+      }
+
+      const response = rejectResponse;
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -518,8 +575,16 @@ export default function ApprovalsPage() {
         <RejectDocumentModal
           isOpen={rejectingDocument !== null}
           onClose={() => setRejectingDocument(null)}
-          document={rejectingDocument}
-          onSubmit={handleSubmitRejection}
+          documentName={rejectingDocument?.name || ''}
+          onReject={handleSubmitRejection}
+        />
+
+        {/* Approve Document Modal */}
+        <ApproveDocumentModal
+          isOpen={approvingDocument !== null}
+          onClose={() => setApprovingDocument(null)}
+          documentName={approvingDocument?.name || ''}
+          onApprove={handleSubmitApproval}
         />
       </div>
     </AppLayout>

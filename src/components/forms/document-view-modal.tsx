@@ -117,7 +117,21 @@ export function DocumentViewModal({
         const workflowResponse = await fetch(`/api/documents/${document.id}/approvals`);
         if (workflowResponse.ok) {
           const workflowData = await workflowResponse.json();
-          setWorkflow(workflowData.workflow);
+          const workflow = workflowData.workflow;
+
+          // Load attachments for rejected steps
+          if (workflow) {
+            const rejectedStep = workflow.document_approval_steps.find(step => step.status === 'rejected');
+            if (rejectedStep) {
+              const attachmentsResponse = await fetch(`/api/documents/${document.id}/approvals/${rejectedStep.id}/attachments`);
+              if (attachmentsResponse.ok) {
+                const attachments = await attachmentsResponse.json();
+                rejectedStep.attachments = attachments;
+              }
+            }
+          }
+          
+          setWorkflow(workflow);
         } else if (workflowResponse.status !== 404) {
           console.error('Failed to load workflow:', await workflowResponse.text());
         }
@@ -408,6 +422,41 @@ export function DocumentViewModal({
                             </p>
                           </div>
                         )}
+                        {/* Rejection Attachments */}
+                        {rejectedStep.attachments && rejectedStep.attachments.length > 0 && (
+                          <div>
+                            <label className="text-sm font-medium text-red-700">Attachments</label>
+                            <div className="mt-2 space-y-2">
+                              {rejectedStep.attachments.map((attachment) => (
+                                <div
+                                  key={attachment.id}
+                                  className="flex items-center justify-between bg-white rounded-md p-2 border border-red-200"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FileIcon className="h-4 w-4 text-red-600" />
+                                    <span className="text-sm text-red-600">{attachment.file_name}</span>
+                                    <span className="text-xs text-red-500">
+                                      ({formatFileSize(attachment.file_size)})
+                                    </span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => {
+                                      if (attachment.downloadUrl) {
+                                        window.open(attachment.downloadUrl, '_blank');
+                                      }
+                                    }}
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="text-sm font-medium text-red-700">Rejected By</label>
@@ -539,7 +588,7 @@ export function DocumentViewModal({
                 {document.customFieldValues && Object.keys(document.customFieldValues).length > 0 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Custom Fields</CardTitle>
+                      <CardTitle className="text-lg">Data Fields</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
