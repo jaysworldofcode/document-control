@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -66,16 +66,40 @@ export default function ApprovalsPage() {
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
   const [rejectingDocument, setRejectingDocument] = useState<Document | null>(null);
 
-  // Filter documents that need review
-  const reviewDocuments = useMemo(() => {
-    return MOCK_DOCUMENTS.filter(doc => 
-      doc.status === "under_review" || doc.status === "pending_review"
-    );
+  // State for documents from API
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch documents pending approval for current user
+  const fetchPendingApprovals = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/approvals');
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending approvals');
+      }
+      
+      const data = await response.json();
+      setDocuments(data.documents || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch documents');
+      console.error('Error fetching pending approvals:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch documents on component mount
+  React.useEffect(() => {
+    fetchPendingApprovals();
   }, []);
 
   // Apply search and status filters
   const filteredDocuments = useMemo(() => {
-    return reviewDocuments.filter(doc => {
+    return documents.filter(doc => {
       const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            doc.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            doc.uploadedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -85,12 +109,11 @@ export default function ApprovalsPage() {
       
       return matchesSearch && matchesStatus;
     });
-  }, [reviewDocuments, searchTerm, statusFilter]);
+  }, [documents, searchTerm, statusFilter]);
 
-  // Get project name for a document
-  const getProjectName = (projectId: string) => {
-    const project = MOCK_PROJECTS.find(p => p.id === projectId);
-    return project ? project.name : "Unknown Project";
+  // Get project name for a document (now included in API response)
+  const getProjectName = (document: any) => {
+    return document.projectName || "Unknown Project";
   };
 
   const handleDownloadDocument = (document: Document) => {
@@ -108,9 +131,33 @@ export default function ApprovalsPage() {
     window.open(sharePointUrl, '_blank');
   };
 
-  const handleApproveDocument = (document: Document) => {
-    console.log("Approving document:", document.name);
-    // In a real app, this would call an API to approve the document
+  const handleApproveDocument = async (document: Document) => {
+    try {
+      const response = await fetch(`/api/documents/${document.id}/approvals`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'approve',
+          comments: '' // Could be enhanced to allow comments
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to approve document');
+      }
+
+      const result = await response.json();
+      console.log("Document approved successfully:", result);
+      
+      // Refresh the documents list
+      fetchPendingApprovals();
+    } catch (error) {
+      console.error("Failed to approve document:", error);
+      // Could show toast notification here
+    }
   };
 
   const handleRejectDocument = (document: Document) => {
@@ -121,19 +168,27 @@ export default function ApprovalsPage() {
     if (!rejectingDocument) return;
     
     try {
-      // In a real app, this would call an API to reject the document with reason and attachments
-      console.log("Rejecting document:", {
-        document: rejectingDocument,
-        reason: rejectionData.reason,
-        attachments: rejectionData.attachments
+      const response = await fetch(`/api/documents/${rejectingDocument.id}/approvals`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'reject',
+          comments: rejectionData.reason
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reject document');
+      }
+
+      const result = await response.json();
+      console.log("Document rejected successfully:", result);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update document status to "rejected"
-      // In real app, this would update the actual document record
-      console.log("Document rejected successfully with feedback");
+      // Refresh the documents list
+      fetchPendingApprovals();
       
       setRejectingDocument(null);
     } catch (error) {
@@ -240,12 +295,33 @@ export default function ApprovalsPage() {
         {/* Results Summary */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredDocuments.length} of {reviewDocuments.length} documents needing review
+            Showing {filteredDocuments.length} of {documents.length} documents pending your approval
           </div>
         </div>
 
         {/* Documents List */}
-        {filteredDocuments.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <Clock className="h-8 w-8 mx-auto mb-2 animate-spin" />
+              <p className="text-muted-foreground">Loading pending approvals...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+              <p className="text-destructive">{error}</p>
+              <Button 
+                variant="outline" 
+                className="mt-2"
+                onClick={fetchPendingApprovals}
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : filteredDocuments.length > 0 ? (
           <div className="space-y-4">
             {filteredDocuments.map((document) => {
               const statusConfig = reviewStatusConfig[document.status as keyof typeof reviewStatusConfig];
@@ -290,7 +366,7 @@ export default function ApprovalsPage() {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Folder className="h-3 w-3" />
-                                  <span>{getProjectName(document.projectId)}</span>
+                                  <span>{getProjectName(document)}</span>
                                 </div>
                               </div>
 

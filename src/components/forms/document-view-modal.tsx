@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -23,9 +23,12 @@ import {
   FileIcon,
   ExternalLink,
   MessageCircle,
-  Loader2
+  Loader2,
+  XCircle
 } from "lucide-react";
 import { Document } from "@/types/document.types";
+import { DocumentApprovalTimeline } from "@/components/document-approval-timeline";
+import { useState, useEffect } from "react";
 import { DocumentComment, NewCommentData, CommentReaction } from "@/types/comment.types";
 import { DocumentComments } from "@/components/document-comments";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
@@ -37,6 +40,29 @@ interface DocumentViewModalProps {
   onEdit?: (document: Document) => void;
 }
 
+interface ApprovalWorkflow {
+  id: string;
+  document_id: string;
+  current_step: number;
+  total_steps: number;
+  overall_status: 'pending' | 'under-review' | 'approved' | 'rejected';
+  document_approval_steps: Array<{
+    id: string;
+    approver: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+    };
+    status: 'pending' | 'approved' | 'rejected';
+    step_order: number;
+    comments?: string;
+    approved_at?: string;
+    rejected_at?: string;
+    viewed_document: boolean;
+  }>;
+}
+
 export function DocumentViewModal({ 
   isOpen, 
   onClose, 
@@ -45,6 +71,8 @@ export function DocumentViewModal({
 }: DocumentViewModalProps) {
   const [comments, setComments] = useState<DocumentComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [workflow, setWorkflow] = useState<ApprovalWorkflow | null>(null);
+  const [loadingWorkflow, setLoadingWorkflow] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
 
   // Load current user
@@ -69,27 +97,40 @@ export function DocumentViewModal({
     }
   }, [isOpen]);
 
-  // Load comments when document changes
+  // Load comments and workflow when document changes
   useEffect(() => {
-    const loadComments = async () => {
+    const loadData = async () => {
       if (!document?.id) return;
       
       setLoadingComments(true);
+      setLoadingWorkflow(true);
+      
       try {
-        const response = await fetch(`/api/comments?documentId=${document.id}`);
-        if (response.ok) {
-          const commentsData = await response.json();
+        // Load comments
+        const commentsResponse = await fetch(`/api/comments?documentId=${document.id}`);
+        if (commentsResponse.ok) {
+          const commentsData = await commentsResponse.json();
           setComments(commentsData || []);
         }
+
+        // Load workflow
+        const workflowResponse = await fetch(`/api/documents/${document.id}/approvals`);
+        if (workflowResponse.ok) {
+          const workflowData = await workflowResponse.json();
+          setWorkflow(workflowData.workflow);
+        } else if (workflowResponse.status !== 404) {
+          console.error('Failed to load workflow:', await workflowResponse.text());
+        }
       } catch (error) {
-        console.error('Failed to load comments:', error);
+        console.error('Failed to load data:', error);
       } finally {
         setLoadingComments(false);
+        setLoadingWorkflow(false);
       }
     };
 
     if (isOpen && document) {
-      loadComments();
+      loadData();
     }
   }, [isOpen, document]);
 
@@ -345,6 +386,47 @@ export function DocumentViewModal({
           <TabsContent value="details" className="mt-4 overflow-auto">
             <ScrollArea className="h-[500px]">
               <div className="space-y-6">
+                {/* Rejection Details */}
+                {document.status === 'rejected' && workflow?.document_approval_steps && (() => {
+                  const rejectedStep = workflow.document_approval_steps.find(step => step.status === 'rejected');
+                  if (!rejectedStep) return null;
+
+                  return (
+                    <Card className="border-red-200 bg-red-50">
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+                          <XCircle className="h-5 w-5" />
+                          Document Rejected
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {rejectedStep.comments && (
+                          <div>
+                            <label className="text-sm font-medium text-red-700">Rejection Reason</label>
+                            <p className="mt-1 text-sm text-red-600 bg-white rounded-md p-3 border border-red-200">
+                              {rejectedStep.comments}
+                            </p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-red-700">Rejected By</label>
+                            <p className="text-sm text-red-600">
+                              {rejectedStep.approver.first_name} {rejectedStep.approver.last_name}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-red-700">Rejected At</label>
+                            <p className="text-sm text-red-600">
+                              {rejectedStep.rejected_at && formatDate(rejectedStep.rejected_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+
                 {/* Document Information */}
                 <Card>
                   <CardHeader>
@@ -431,6 +513,27 @@ export function DocumentViewModal({
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Approval Timeline */}
+                {(document.status === 'pending_review' || document.status === 'under_review' || document.status === 'approved' || document.status === 'rejected') && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Approval Status</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingWorkflow ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                          <span>Loading approval status...</span>
+                        </div>
+                      ) : workflow ? (
+                        <DocumentApprovalTimeline workflow={workflow} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No approval workflow found.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Custom Fields */}
                 {document.customFieldValues && Object.keys(document.customFieldValues).length > 0 && (

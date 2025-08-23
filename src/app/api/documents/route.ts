@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       fileType: doc.file_type || 'unknown',
       fileSize: doc.file_size || 0,
       version: '1.0', // Default version since we don't have versioning yet
-      status: 'draft' as const, // Default status since we don't have status field yet
+      status: doc.status || 'draft',
       uploadedBy: doc.uploaded_by_user ? `${doc.uploaded_by_user.first_name} ${doc.uploaded_by_user.last_name}` : 'Unknown',
       uploadedAt: doc.uploaded_at,
       lastModified: doc.updated_at,
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       fileType: document.file_type || 'unknown',
       fileSize: document.file_size || 0,
       version: '1.0',
-      status: 'draft' as const,
+      status: document.status || 'draft',
       uploadedBy: document.uploaded_by_user ? `${document.uploaded_by_user.first_name} ${document.uploaded_by_user.last_name}` : 'Unknown',
       uploadedAt: document.uploaded_at,
       lastModified: document.updated_at,

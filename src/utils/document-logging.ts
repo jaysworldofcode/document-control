@@ -25,7 +25,11 @@ export async function logDocumentActivity(
   logData: DocumentLogData
 ): Promise<boolean> {
   try {
-    const response = await fetch(`/api/documents/${documentId}/logs`, {
+    // Check if we're on the client side
+    const isClient = typeof window !== 'undefined';
+    const baseUrl = isClient ? '' : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/documents/${documentId}/logs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

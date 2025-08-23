@@ -55,7 +55,8 @@ import {
   Send,
   Loader2,
   GitBranch,
-  Globe
+  Globe,
+  XCircle
 } from "lucide-react";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project } from "@/types/project.types";
@@ -110,9 +111,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     email: user.email
   } : null;
 
-  // Fetch project data
-  useEffect(() => {
-    const fetchProjectData = async () => {
+  // Fetch project data function
+  const fetchProjectData = async () => {
       try {
         setIsLoading(true);
         setError(null);
@@ -153,8 +153,10 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       } finally {
         setIsLoading(false);
       }
-    };
+  };
 
+  // Fetch project data on component mount
+  useEffect(() => {
     if (projectId) {
       fetchProjectData();
     }
@@ -202,27 +204,34 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     if (!sendingForApprovalDocument) return;
     
     try {
-      // Log the status change activity
-      await documentLogging.logStatusChange(
-        sendingForApprovalDocument.id,
-        sendingForApprovalDocument.status,
-        'pending_review',
-        comments
-      );
-      
-      // In a real app, this would call an API to create the approval workflow
-      console.log("Sending document for approval:", {
-        document: sendingForApprovalDocument,
-        approvers,
-        comments
+      // Call the API to create the approval workflow
+      const response = await fetch(`/api/documents/${sendingForApprovalDocument.id}/approvals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approvers,
+          comments
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send document for approval');
+      }
+
+      const result = await response.json();
+      console.log("Document sent for approval successfully:", result);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update document status to "pending_review" 
-      // In real app, this would update the actual document record
-      console.log("Document sent for approval successfully");
+      // Update the document in local state with the latest data from the server
+      if (result.document) {
+        setProjectDocuments(prev => prev.map(doc => 
+          doc.id === sendingForApprovalDocument.id
+            ? { ...doc, ...result.document }
+            : doc
+        ));
+      }
       
       setSendingForApprovalDocument(null);
     } catch (error) {
@@ -720,10 +729,47 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 Activity Logs
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
-                                <Send className="h-4 w-4 mr-2" />
-                                Send for Approval
-                              </DropdownMenuItem>
+                              {document.status === 'pending_review' || document.status === 'under_review' ? (
+                                <DropdownMenuItem onClick={async () => {
+                                  try {
+                                    const response = await fetch(`/api/documents/${document.id}/approvals/cancel`, {
+                                      method: 'POST',
+                                    });
+
+                                    if (!response.ok) {
+                                      const error = await response.json();
+                                      throw new Error(error.error || 'Failed to cancel approval');
+                                    }
+
+                                    // Update document status in local state
+                                    setProjectDocuments(prev => prev.map(doc => 
+                                      doc.id === document.id
+                                        ? { ...doc, status: 'draft' }
+                                        : doc
+                                    ));
+
+                                    toast({
+                                      title: "Approval cancelled",
+                                      description: "The approval workflow has been cancelled.",
+                                    });
+                                  } catch (error) {
+                                    console.error('Failed to cancel approval:', error);
+                                    toast({
+                                      variant: "destructive",
+                                      title: "Failed to cancel approval",
+                                      description: error instanceof Error ? error.message : "An unexpected error occurred",
+                                    });
+                                  }
+                                }}>
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Cancel Approval
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Send for Approval
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Open in SharePoint

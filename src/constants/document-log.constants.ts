@@ -476,5 +476,17 @@ export const LOG_ACTION_CONFIG: Record<DocumentLogAction, {
     icon: "📄",
     color: "text-gray-600",
     description: "Document was copied"
+  },
+  approved: {
+    label: "Approved",
+    icon: "✅",
+    color: "text-green-600",
+    description: "Document was approved in workflow"
+  },
+  rejected: {
+    label: "Rejected",
+    icon: "❌",
+    color: "text-red-600",
+    description: "Document was rejected in workflow"
   }
 };

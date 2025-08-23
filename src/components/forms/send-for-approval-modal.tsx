@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +57,8 @@ import {
   Clock,
   X,
   Send,
-  FileText
+  FileText,
+  AlertCircle
 } from "lucide-react";
 import { Document } from "@/types/document.types";
 import { User as UserType, Approver } from "@/types/project.types";
@@ -68,22 +69,6 @@ interface SendForApprovalModalProps {
   document: Document | null;
   onSubmit: (approvers: Approver[], comments?: string) => Promise<void>;
 }
-
-// Mock users data - in real app this would come from API
-const MOCK_USERS: UserType[] = [
-  { id: 'user_001', name: 'Mario Rodriguez', email: 'mario.rodriguez@company.com', department: 'Engineering', role: 'Senior Manager', isActive: true },
-  { id: 'user_002', name: 'Jose Martinez', email: 'jose.martinez@company.com', department: 'Engineering', role: 'Tech Lead', isActive: true },
-  { id: 'user_003', name: 'John Smith', email: 'john.smith@company.com', department: 'Quality Assurance', role: 'QA Manager', isActive: true },
-  { id: 'user_004', name: 'Jane Wilson', email: 'jane.wilson@company.com', department: 'Compliance', role: 'Compliance Officer', isActive: true },
-  { id: 'user_005', name: 'Sarah Kim', email: 'sarah.kim@company.com', department: 'Engineering', role: 'Software Engineer', isActive: true },
-  { id: 'user_006', name: 'Michael Brown', email: 'michael.brown@company.com', department: 'Security', role: 'Security Specialist', isActive: true },
-  { id: 'user_007', name: 'Lisa Wang', email: 'lisa.wang@company.com', department: 'Business Analysis', role: 'Business Analyst', isActive: true },
-  { id: 'user_008', name: 'David Chen', email: 'david.chen@company.com', department: 'Operations', role: 'Operations Manager', isActive: true },
-  { id: 'user_009', name: 'Emily Davis', email: 'emily.davis@company.com', department: 'Legal', role: 'Legal Counsel', isActive: true },
-  { id: 'user_010', name: 'Robert Johnson', email: 'robert.johnson@company.com', department: 'Finance', role: 'Finance Director', isActive: true },
-];
-
-const DEPARTMENTS = ['All', 'Engineering', 'Quality Assurance', 'Compliance', 'Security', 'Business Analysis', 'Operations', 'Legal', 'Finance'];
 
 // Sortable Approver Item Component
 function SortableApproverItem({ 
@@ -170,6 +155,54 @@ export function SendForApprovalModal({
   const [comments, setComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // State for project team members
+  const [projectTeam, setProjectTeam] = useState<UserType[]>([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(true);
+  const [teamError, setTeamError] = useState<string | null>(null);
+
+  // Fetch project team members
+  const fetchProjectTeam = async () => {
+    if (!document?.projectId) return;
+    
+    try {
+      setIsLoadingTeam(true);
+      setTeamError(null);
+      
+      const response = await fetch(`/api/team?projectId=${document.projectId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch project team');
+      }
+      
+      const data = await response.json();
+      setProjectTeam(data.map((member: any) => ({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        department: 'No Department', // We can add department later if needed
+        role: member.role || 'Team Member',
+        isActive: true
+      })));
+    } catch (error) {
+      console.error('Error fetching project team:', error);
+      setTeamError('Failed to load project team members');
+    } finally {
+      setIsLoadingTeam(false);
+    }
+  };
+
+  // Get unique departments from team members
+  const departments = useMemo(() => {
+    const uniqueDepartments = [...new Set(projectTeam.map(user => user.department))];
+    return ['All', ...uniqueDepartments.sort()];
+  }, [projectTeam]);
+
+  // Fetch team members when modal opens
+  useEffect(() => {
+    if (isOpen && document) {
+      fetchProjectTeam();
+    }
+  }, [isOpen, document]);
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -180,7 +213,7 @@ export function SendForApprovalModal({
 
   // Filter users based on search and department
   const filteredUsers = useMemo(() => {
-    return MOCK_USERS.filter(user => {
+    return projectTeam.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            user.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -191,9 +224,9 @@ export function SendForApprovalModal({
       
       return matchesSearch && matchesDepartment && notSelected && user.isActive;
     });
-  }, [searchTerm, selectedDepartment, selectedApprovers]);
+  }, [searchTerm, selectedDepartment, selectedApprovers, projectTeam]);
 
-  // Don't render anything if document is null - moved after all hooks
+  // Don't render anything if document is null
   if (!document) {
     return null;
   }
@@ -291,7 +324,7 @@ export function SendForApprovalModal({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {DEPARTMENTS.map(dept => (
+                    {departments.map(dept => (
                       <SelectItem key={dept} value={dept}>
                         {dept === "All" ? "All Departments" : dept}
                       </SelectItem>
@@ -303,7 +336,25 @@ export function SendForApprovalModal({
               {/* User List */}
               <ScrollArea className="h-64 border rounded-lg">
                 <div className="p-2 space-y-2">
-                  {filteredUsers.map(user => (
+                  {isLoadingTeam ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-2 opacity-50 animate-pulse" />
+                      <p className="text-sm">Loading team members...</p>
+                    </div>
+                  ) : teamError ? (
+                    <div className="text-center py-8 text-destructive">
+                      <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">{teamError}</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2"
+                        onClick={fetchProjectTeam}
+                      >
+                        Try Again
+                      </Button>
+                    </div>
+                  ) : filteredUsers.map(user => (
                     <div
                       key={user.id}
                       className="flex items-center justify-between p-3 hover:bg-muted rounded-lg cursor-pointer"
@@ -324,10 +375,14 @@ export function SendForApprovalModal({
                     </div>
                   ))}
                   
-                  {filteredUsers.length === 0 && (
+                  {!isLoadingTeam && !teamError && filteredUsers.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
                       <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No users found</p>
+                      <p className="text-sm">
+                        {projectTeam.length === 0
+                          ? "No team members found in this project"
+                          : "No users match your search"}
+                      </p>
                     </div>
                   )}
                 </div>

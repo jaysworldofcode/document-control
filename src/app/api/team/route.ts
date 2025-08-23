@@ -63,34 +63,76 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 
-    // Fetch team members for the project
+    // Fetch all project team members (including managers) except current user
     const { data: teamMembers, error } = await supabase
       .from('project_team')
       .select(`
         id,
         role,
         added_at,
-        user:users!project_team_user_id_fkey(id, first_name, last_name, email, role)
+        user:users!project_team_user_id_fkey(
+          id,
+          first_name,
+          last_name,
+          email,
+          role
+        )
       `)
       .eq('project_id', projectId)
+      .neq('user_id', user.userId) // Exclude current user
       .order('added_at', { ascending: true });
+
+    // Also get project managers
+    const { data: projectManagers } = await supabase
+      .from('project_managers')
+      .select(`
+        id,
+        is_primary_manager,
+        added_at,
+        user:users!project_managers_user_id_fkey(
+          id,
+          first_name,
+          last_name,
+          email,
+          role
+        )
+      `)
+      .eq('project_id', projectId)
+      .neq('user_id', user.userId); // Exclude current user
 
     if (error) {
       console.error('Error fetching team members:', error);
       return NextResponse.json({ error: 'Failed to fetch team members' }, { status: 500 });
     }
 
-    // Transform team members to match frontend interface
-    const transformedMembers = teamMembers?.map(member => ({
-      id: member.user.id,
-      name: `${member.user.first_name} ${member.user.last_name}`,
-      email: member.user.email,
-      role: member.role || 'team member',
-      addedAt: member.added_at,
-      teamMemberId: member.id // Store the project_team record ID
-    })) || [];
+    // Transform team members and managers to match frontend interface
+    const transformedMembers = [
+      // Transform team members
+      ...(teamMembers?.map(member => ({
+        id: member.user.id,
+        name: `${member.user.first_name} ${member.user.last_name}`,
+        email: member.user.email,
+        role: member.role || 'Team Member',
+        department: member.user.role?.name || 'No Department',
+        addedAt: member.added_at,
+        teamMemberId: member.id
+      })) || []),
+      // Transform project managers
+      ...(projectManagers?.map(manager => ({
+        id: manager.user.id,
+        name: `${manager.user.first_name} ${manager.user.last_name}`,
+        email: manager.user.email,
+        role: manager.is_primary_manager ? 'Primary Manager' : 'Project Manager',
+        department: manager.user.role?.name || 'No Department',
+        addedAt: manager.added_at,
+        teamMemberId: manager.id
+      })) || [])
+    ];
 
-    return NextResponse.json(transformedMembers);
+    // Remove duplicates (in case someone is both team member and manager)
+    const uniqueMembers = Array.from(new Map(transformedMembers.map(item => [item.id, item])).values());
+
+    return NextResponse.json(uniqueMembers);
   } catch (error) {
     console.error('Error in GET /api/team:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -21,6 +21,8 @@ export type DocumentLogAction =
   | 'checkin'
   | 'approval'
   | 'rejection'
+  | 'approved'
+  | 'rejected'
   | 'version_upload'
   | 'share'
   | 'comment'
