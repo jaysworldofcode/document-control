@@ -125,6 +125,12 @@ export default function SettingsPage() {
   // SharePoint integration state
   const [isEditingSharePoint, setIsEditingSharePoint] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: string;
+  } | null>(null);
   const [sharePointForm, setSharePointForm] = useState({
     tenantId: "",
     clientId: "",
@@ -184,6 +190,72 @@ export default function SettingsPage() {
 
     if (user) {
       fetchOrganizationData();
+    }
+  }, [user]);
+
+  // Fetch SharePoint configuration
+  useEffect(() => {
+    const fetchSharePointConfig = async () => {
+      if (!user?.organizationId) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/sharepoint/config', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const config = await response.json();
+          setSharePointForm({
+            tenantId: config.tenantId || "",
+            clientId: config.clientId || "",
+            clientSecret: config.clientSecret === '••••••••••••' ? "" : config.clientSecret || "",
+            siteUrl: config.siteUrl || "",
+            documentLibrary: config.documentLibrary || "Documents",
+            isEnabled: config.isEnabled || false,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch SharePoint configuration:', error);
+      }
+    };
+
+    if (user) {
+      fetchSharePointConfig();
+    }
+  }, [user]);
+
+  // Fetch SharePoint configuration
+  useEffect(() => {
+    const fetchSharePointConfig = async () => {
+      if (!user?.organizationId) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/sharepoint/config', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const config = await response.json();
+          setSharePointForm({
+            tenantId: config.tenantId || '',
+            clientId: config.clientId || '',
+            clientSecret: config.clientSecret === '••••••••••••' ? '' : config.clientSecret || '',
+            siteUrl: config.siteUrl || '',
+            documentLibrary: config.documentLibrary || 'Documents',
+            isEnabled: config.isEnabled || false,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch SharePoint configuration:', error);
+      }
+    };
+
+    if (user) {
+      fetchSharePointConfig();
     }
   }, [user]);
 
@@ -332,6 +404,151 @@ export default function SettingsPage() {
         variant: "destructive",
         title: "Update failed",
         description: "An unexpected error occurred while updating your organization.",
+      });
+    }
+  };
+
+  const handleTestSharePointConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+
+    try {
+      const response = await fetch('/api/sharepoint/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          tenantId: sharePointForm.tenantId,
+          clientId: sharePointForm.clientId,
+          clientSecret: sharePointForm.clientSecret,
+          siteUrl: sharePointForm.siteUrl,
+          documentLibrary: sharePointForm.documentLibrary,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        setConnectionTestResult({
+          success: true,
+          message: "Connection successful!",
+          details: result.details || "Successfully connected to SharePoint and verified document library access.",
+        });
+        toast({
+          title: "Connection successful",
+          description: "SharePoint connection test passed. All configurations are working correctly.",
+        });
+      } else {
+        setConnectionTestResult({
+          success: false,
+          message: result.error || "Connection failed",
+          details: result.details || "Please check your configuration and try again.",
+        });
+        toast({
+          variant: "destructive",
+          title: "Connection failed",
+          description: result.error || "Unable to connect to SharePoint. Please check your settings.",
+        });
+      }
+    } catch (error) {
+      console.error('SharePoint connection test error:', error);
+      setConnectionTestResult({
+        success: false,
+        message: "Connection test failed",
+        details: "An unexpected error occurred while testing the connection.",
+      });
+      toast({
+        variant: "destructive",
+        title: "Test failed",
+        description: "An unexpected error occurred while testing the SharePoint connection.",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleDisconnectSharePoint = async () => {
+    try {
+      const response = await fetch('/api/sharepoint/config', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        setSharePointForm({
+          tenantId: "",
+          clientId: "",
+          clientSecret: "",
+          siteUrl: "",
+          documentLibrary: "Documents",
+          isEnabled: false,
+        });
+        toast({
+          title: "SharePoint disconnected",
+          description: "SharePoint integration has been disabled.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Disconnect failed",
+          description: result.error || "Failed to disconnect SharePoint.",
+        });
+      }
+    } catch (error) {
+      console.error('SharePoint disconnect error:', error);
+      toast({
+        variant: "destructive",
+        title: "Disconnect failed",
+        description: "An unexpected error occurred while disconnecting SharePoint.",
+      });
+    }
+  };
+
+  const handleSaveSharePointConfiguration = async () => {
+    try {
+      const response = await fetch('/api/sharepoint/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          tenantId: sharePointForm.tenantId,
+          clientId: sharePointForm.clientId,
+          clientSecret: sharePointForm.clientSecret,
+          siteUrl: sharePointForm.siteUrl,
+          documentLibrary: sharePointForm.documentLibrary,
+          isEnabled: true,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setSharePointForm(prev => ({ ...prev, isEnabled: true }));
+        setIsEditingSharePoint(false);
+        setConnectionTestResult(null); // Clear any previous test results
+        toast({
+          title: "SharePoint settings saved",
+          description: "Your SharePoint integration has been configured successfully.",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Save failed",
+          description: error.error || 'Failed to save SharePoint configuration',
+        });
+      }
+    } catch (error) {
+      console.error('SharePoint save error:', error);
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: "An unexpected error occurred while saving SharePoint configuration.",
       });
     }
   };
@@ -942,28 +1159,63 @@ export default function SettingsPage() {
                           </p>
                         </div>
                       </div>
-                      {sharePointForm.isEnabled && !isEditingSharePoint && (
-                        <Button variant="outline" size="sm">
-                          <Zap className="h-4 w-4 mr-2" />
-                          Test Connection
-                        </Button>
-                      )}
+                      <div className="flex gap-2">
+                        {/* Test Connection Button */}
+                        {(isEditingSharePoint || sharePointForm.isEnabled) && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleTestSharePointConnection}
+                            disabled={isTestingConnection || !sharePointForm.tenantId || !sharePointForm.clientId || !sharePointForm.clientSecret || !sharePointForm.siteUrl}
+                          >
+                            {isTestingConnection ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Zap className="h-4 w-4 mr-2" />
+                            )}
+                            {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Connection Test Result */}
+                    {connectionTestResult && (
+                      <div className={`p-4 border rounded-lg ${
+                        connectionTestResult.success 
+                          ? 'border-green-200 bg-green-50' 
+                          : 'border-red-200 bg-red-50'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          {connectionTestResult.success ? (
+                            <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                          ) : (
+                            <X className="h-5 w-5 text-red-600 mt-0.5" />
+                          )}
+                          <div className="flex-1">
+                            <p className={`font-medium ${
+                              connectionTestResult.success ? 'text-green-800' : 'text-red-800'
+                            }`}>
+                              {connectionTestResult.message}
+                            </p>
+                            {connectionTestResult.details && (
+                              <p className={`text-sm mt-1 ${
+                                connectionTestResult.success ? 'text-green-700' : 'text-red-700'
+                              }`}>
+                                {connectionTestResult.details}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="flex gap-2">
                       {isEditingSharePoint ? (
                         <>
                           <Button 
-                            onClick={() => {
-                              // Save SharePoint settings
-                              setSharePointForm(prev => ({ ...prev, isEnabled: true }));
-                              setIsEditingSharePoint(false);
-                              toast({
-                                title: "SharePoint settings saved",
-                                description: "Your SharePoint integration has been configured successfully.",
-                              });
-                            }}
+                            onClick={handleSaveSharePointConfiguration}
                             disabled={!sharePointForm.tenantId || !sharePointForm.clientId || !sharePointForm.clientSecret || !sharePointForm.siteUrl}
                           >
                             <Check className="h-4 w-4 mr-2" />
@@ -1028,6 +1280,13 @@ export default function SettingsPage() {
                         <li>Sites.ReadWrite.All application permission</li>
                         <li>Admin consent for the application</li>
                         <li>Valid SharePoint site URL and document library</li>
+                      </ul>
+                      <p className="mt-3 font-medium">What the Test Connection does:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Generates an OAuth token using your credentials</li>
+                        <li>Verifies access to your SharePoint site</li>
+                        <li>Checks if the document library exists and is accessible</li>
+                        <li>Confirms read/write permissions are properly configured</li>
                       </ul>
                       <p className="mt-2 text-xs">
                         <a href="#" className="text-blue-600 underline">Learn how to set up SharePoint integration</a>
