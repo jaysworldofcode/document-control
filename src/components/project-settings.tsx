@@ -419,6 +419,14 @@ export function ProjectSettings({
               />
             </div>
           )}
+
+          <div className="flex justify-end pt-4">
+            <Button onClick={handleSaveGeneralSettings} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save SharePoint Settings
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

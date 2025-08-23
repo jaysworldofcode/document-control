@@ -769,8 +769,38 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <ProjectSettings
             project={project}
             onUpdateProject={async (updates) => {
-              console.log("Updating project:", updates);
-              // Here you would call the API to update project
+              try {
+                console.log("Updating project:", updates);
+                
+                const response = await fetch(`/api/projects/${projectId}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(updates),
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.error || 'Failed to update project');
+                }
+
+                const updatedProject = await response.json();
+                setProject(updatedProject);
+                
+                toast({
+                  title: "Project updated successfully",
+                  description: "The project settings have been saved.",
+                });
+              } catch (error) {
+                console.error("Failed to update project:", error);
+                toast({
+                  variant: "destructive",
+                  title: "Update failed",
+                  description: error instanceof Error ? error.message : "An unexpected error occurred while updating the project.",
+                });
+                throw error;
+              }
             }}
             onArchiveProject={async () => {
               console.log("Archiving project:", project.id);

@@ -119,8 +119,8 @@ export async function GET(
         addedAt: tm.added_at
       })) || [],
       sharePointConfig: {
-        folderPath: project.sharepoint_folder_path || '',
-        folderId: project.sharepoint_folder_id,
+        siteUrl: project.sharepoint_site_url || '',
+        documentLibrary: project.sharepoint_document_library || 'Documents',
         excelSheetPath: project.sharepoint_excel_path,
         excelSheetId: project.sharepoint_excel_id,
         isExcelLoggingEnabled: project.excel_logging_enabled || false
@@ -137,6 +137,163 @@ export async function GET(
     return NextResponse.json(transformedProject);
   } catch (error) {
     console.error('Error in GET /api/projects/[id]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PUT - Update a project by ID
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await verifyToken(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
+
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+
+    // Get user's organization to ensure they can only update their org's projects
+    const { data: userData } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user.userId)
+      .single();
+
+    if (!userData?.organization_id) {
+      return NextResponse.json({ error: 'User organization not found' }, { status: 404 });
+    }
+
+    // Verify the project exists and belongs to the user's organization
+    const { data: existingProject, error: fetchError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('organization_id', userData.organization_id)
+      .eq('is_archived', false)
+      .single();
+
+    if (fetchError || !existingProject) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Prepare update data, transforming frontend field names to database column names
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    // Map frontend fields to database columns
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.priority !== undefined) updateData.priority = body.priority;
+    if (body.startDate !== undefined) updateData.start_date = body.startDate === '' ? null : body.startDate;
+    if (body.endDate !== undefined) updateData.end_date = body.endDate === '' ? null : body.endDate;
+    if (body.progress !== undefined) updateData.progress = body.progress;
+    if (body.budget !== undefined) updateData.budget = body.budget;
+    if (body.client !== undefined) updateData.client = body.client;
+    if (body.clientId !== undefined) updateData.client_id = body.clientId;
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.category !== undefined) updateData.category = body.category;
+    if (body.customFields !== undefined) updateData.custom_fields = body.customFields;
+
+    // Handle SharePoint configuration
+    if (body.sharePointConfig) {
+      const config = body.sharePointConfig;
+      if (config.siteUrl !== undefined) updateData.sharepoint_site_url = config.siteUrl;
+      if (config.documentLibrary !== undefined) updateData.sharepoint_document_library = config.documentLibrary;
+      if (config.excelSheetPath !== undefined) updateData.sharepoint_excel_path = config.excelSheetPath;
+      if (config.excelSheetId !== undefined) updateData.sharepoint_excel_id = config.excelSheetId;
+      if (config.isExcelLoggingEnabled !== undefined) updateData.excel_logging_enabled = config.isExcelLoggingEnabled;
+    }
+
+    // Update the project
+    const { data: updatedProject, error: updateError } = await supabase
+      .from('projects')
+      .update(updateData)
+      .eq('id', projectId)
+      .select(`
+        *,
+        project_managers(
+          id,
+          can_approve_documents,
+          is_primary_manager,
+          added_at,
+          user:users!project_managers_user_id_fkey(id, first_name, last_name, email, role)
+        ),
+        project_team(
+          id,
+          role,
+          added_at,
+          user:users!project_team_user_id_fkey(id, first_name, last_name, email, role)
+        ),
+        documents(count)
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('Error updating project:', updateError);
+      return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
+    }
+
+    // Transform the updated data to match the frontend interface
+    const transformedProject = {
+      id: updatedProject.id,
+      name: updatedProject.name,
+      description: updatedProject.description || '',
+      status: updatedProject.status,
+      priority: updatedProject.priority,
+      startDate: updatedProject.start_date,
+      endDate: updatedProject.end_date,
+      progress: updatedProject.progress || 0,
+      documentsCount: updatedProject.documents?.[0]?.count || 0,
+      budget: updatedProject.budget || '',
+      client: updatedProject.client || '',
+      clientId: updatedProject.client_id,
+      managers: updatedProject.project_managers?.map((pm: any) => ({
+        id: pm.user.id,
+        name: `${pm.user.first_name} ${pm.user.last_name}`,
+        email: pm.user.email,
+        role: pm.user.role,
+        canApproveDocuments: pm.can_approve_documents,
+        isPrimaryManager: pm.is_primary_manager,
+        addedAt: pm.added_at,
+        addedBy: ''
+      })) || [],
+      team: updatedProject.project_team?.map((tm: any) => ({
+        id: tm.user.id,
+        name: `${tm.user.first_name} ${tm.user.last_name}`,
+        email: tm.user.email,
+        role: tm.role || 'team member',
+        addedAt: tm.added_at
+      })) || [],
+      sharePointConfig: {
+        siteUrl: updatedProject.sharepoint_site_url || '',
+        documentLibrary: updatedProject.sharepoint_document_library || 'Documents',
+        excelSheetPath: updatedProject.sharepoint_excel_path,
+        excelSheetId: updatedProject.sharepoint_excel_id,
+        isExcelLoggingEnabled: updatedProject.excel_logging_enabled || false
+      },
+      customFields: updatedProject.custom_fields || [],
+      createdAt: updatedProject.created_at,
+      updatedAt: updatedProject.updated_at,
+      createdBy: updatedProject.created_by,
+      tags: updatedProject.tags || [],
+      category: updatedProject.category,
+      isArchived: updatedProject.is_archived
+    };
+
+    return NextResponse.json(transformedProject);
+  } catch (error) {
+    console.error('Error in PUT /api/projects/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

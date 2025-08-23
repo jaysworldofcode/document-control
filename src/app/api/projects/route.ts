@@ -94,8 +94,8 @@ export async function GET(request: NextRequest) {
       })) || [],
       team: [], // We'll populate this with the count for now
       sharePointConfig: {
-        folderPath: project.sharepoint_folder_path || '',
-        folderId: project.sharepoint_folder_id,
+        siteUrl: project.sharepoint_site_url || '',
+        documentLibrary: project.sharepoint_document_library || 'Documents',
         excelSheetPath: project.sharepoint_excel_path,
         excelSheetId: project.sharepoint_excel_id,
         isExcelLoggingEnabled: project.excel_logging_enabled || false
@@ -186,8 +186,8 @@ export async function POST(request: NextRequest) {
         description,
         status,
         priority,
-        start_date: startDate,
-        end_date: endDate || null, // Convert empty string to null
+        start_date: startDate === '' ? null : startDate,
+        end_date: endDate === '' ? null : endDate,
         budget,
         client,
         client_id: clientId,
@@ -316,8 +316,8 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
-    if (startDate !== undefined) updateData.start_date = startDate;
-    if (endDate !== undefined) updateData.end_date = endDate || null; // Convert empty string to null
+    if (startDate !== undefined) updateData.start_date = startDate === '' ? null : startDate;
+    if (endDate !== undefined) updateData.end_date = endDate === '' ? null : endDate;
     if (budget !== undefined) updateData.budget = budget;
     if (client !== undefined) updateData.client = client;
     if (clientId !== undefined) updateData.client_id = clientId;
