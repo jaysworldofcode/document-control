@@ -87,6 +87,18 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 });
     }
 
+    // Fetch SharePoint configurations for this project
+    const { data: sharePointConfigs, error: configError } = await supabase
+      .from('project_sharepoint_configs')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    if (configError) {
+      console.error('Error fetching SharePoint configs:', configError);
+      // Don't fail the entire request, just log the error
+    }
+
     // Transform the data to match the frontend interface
     const transformedProject = {
       id: project.id,
@@ -125,6 +137,8 @@ export async function GET(
         excelSheetId: project.sharepoint_excel_id,
         isExcelLoggingEnabled: project.excel_logging_enabled || false
       },
+      // Also fetch multiple SharePoint configurations
+      sharePointConfigs: sharePointConfigs || [],
       customFields: project.custom_fields || [],
       createdAt: project.created_at,
       updatedAt: project.updated_at,
@@ -244,6 +258,18 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
     }
 
+    // Fetch updated SharePoint configurations for this project
+    const { data: sharePointConfigs, error: configError } = await supabase
+      .from('project_sharepoint_configs')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    if (configError) {
+      console.error('Error fetching SharePoint configs:', configError);
+      // Don't fail the entire request, just log the error
+    }
+
     // Transform the updated data to match the frontend interface
     const transformedProject = {
       id: updatedProject.id,
@@ -282,6 +308,8 @@ export async function PUT(
         excelSheetId: updatedProject.sharepoint_excel_id,
         isExcelLoggingEnabled: updatedProject.excel_logging_enabled || false
       },
+      // Also include the updated SharePoint configurations
+      sharePointConfigs: sharePointConfigs || [],
       customFields: updatedProject.custom_fields || [],
       createdAt: updatedProject.created_at,
       updatedAt: updatedProject.updated_at,

@@ -87,7 +87,7 @@ async function testSharePointConnection(config: any) {
 // GET - Get all SharePoint configurations for a project
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -95,7 +95,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const projectId = params.id;
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
 
     // Get user's organization
     const { data: userData } = await supabase
@@ -142,7 +143,7 @@ export async function GET(
 // POST - Create a new SharePoint configuration for a project
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -150,7 +151,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const projectId = params.id;
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
     const body = await request.json();
     const {
       name,

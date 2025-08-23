@@ -158,7 +158,7 @@ export async function GET(
 // PUT - Update a SharePoint configuration
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; configId: string } }
+  { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -166,7 +166,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: projectId, configId } = params;
+    const resolvedParams = await params;
+    const { id: projectId, configId } = resolvedParams;
     const body = await request.json();
     const {
       name,
@@ -272,7 +273,7 @@ export async function PUT(
 // DELETE - Delete a SharePoint configuration
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; configId: string } }
+  { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -280,7 +281,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: projectId, configId } = params;
+    const resolvedParams = await params;
+    const { id: projectId, configId } = resolvedParams;
 
     // Get user's organization
     const { data: userData } = await supabase
@@ -334,7 +336,7 @@ export async function DELETE(
 // POST - Test SharePoint connection
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; configId: string } }
+  { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
   try {
     const user = await verifyToken(request);
@@ -342,7 +344,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: projectId, configId } = params;
+    const resolvedParams = await params;
+    const { id: projectId, configId } = resolvedParams;
 
     // Check if this is a test of existing config or new config data
     const body = await request.json();
