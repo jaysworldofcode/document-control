@@ -53,7 +53,8 @@ import {
   UserCheck,
   ClipboardList,
   Send,
-  Loader2
+  Loader2,
+  GitBranch
 } from "lucide-react";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project } from "@/types/project.types";
@@ -64,6 +65,7 @@ import { DocumentViewModal } from "@/components/forms/document-view-modal";
 import { VersionHistoryModal } from "@/components/forms/version-history-modal";
 import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
 import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal";
+import { UploadVersionModal } from "@/components/forms/upload-version-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
 import { ProjectChatBox } from "@/components/project-chat-box";
@@ -86,6 +88,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+  const [uploadingVersionDocument, setUploadingVersionDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
   const [isChatVisible, setIsChatVisible] = useState(false);
@@ -203,6 +206,68 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       setSendingForApprovalDocument(null);
     } catch (error) {
       console.error("Failed to send document for approval:", error);
+      throw error;
+    }
+  };
+
+  const handleUploadVersion = async (data: {
+    file: File;
+    versionType: 'minor' | 'major';
+    customVersion?: string;
+    changesSummary: string;
+  }) => {
+    if (!uploadingVersionDocument) return;
+    
+    try {
+      console.log('📤 Uploading new version for document:', uploadingVersionDocument.id);
+      
+      const formData = new FormData();
+      formData.append('file', data.file);
+      formData.append('documentId', uploadingVersionDocument.id);
+      formData.append('versionType', data.versionType);
+      formData.append('changesSummary', data.changesSummary);
+      
+      if (data.customVersion) {
+        formData.append('customVersion', data.customVersion);
+      }
+
+      const response = await fetch('/api/documents/version', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload version');
+      }
+
+      const result = await response.json();
+      const newVersion = result.version;
+      
+      // Update the document in local state with new version info
+      setProjectDocuments(prev => prev.map(doc => 
+        doc.id === uploadingVersionDocument.id 
+          ? { ...doc, version: newVersion.version, lastModified: newVersion.uploadedAt }
+          : doc
+      ));
+      
+      // Show success message
+      toast({
+        title: "New version uploaded successfully",
+        description: `Version ${newVersion.version} of ${uploadingVersionDocument.name} has been uploaded to SharePoint.`,
+      });
+      
+      setUploadingVersionDocument(null);
+    } catch (error) {
+      console.error("Failed to upload version:", error);
+      
+      // Show error message
+      toast({
+        variant: "destructive",
+        title: "Version upload failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while uploading the new version.",
+      });
+      
       throw error;
     }
   };
@@ -678,7 +743,11 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setEditingDocument(document)}>
                                 <Edit className="h-4 w-4 mr-2" />
-                                Edit & Upload Version
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setUploadingVersionDocument(document)}>
+                                <GitBranch className="h-4 w-4 mr-2" />
+                                Upload New Version
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setVersionHistoryDocument(document)}>
                                 <History className="h-4 w-4 mr-2" />
@@ -907,6 +976,16 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           // Here you would implement version viewing functionality
         }}
       />
+
+      {/* Upload Version Modal */}
+      {uploadingVersionDocument && (
+        <UploadVersionModal
+          isOpen={uploadingVersionDocument !== null}
+          onClose={() => setUploadingVersionDocument(null)}
+          onSubmit={handleUploadVersion}
+          document={uploadingVersionDocument}
+        />
+      )}
 
       {/* Document Logs Modal */}
       <DocumentLogsModal
