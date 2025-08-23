@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
+import { uploadChatAttachmentToStorage } from '@/utils/chat-storage';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied to this project' }, { status: 403 });
     }
 
-    // Fetch chat messages with user info and reactions
+    // Fetch chat messages with user info, reactions, and attachments
     const { data: messages, error } = await supabase
       .from('project_chat_messages')
       .select(`
@@ -124,6 +125,14 @@ export async function GET(request: NextRequest) {
           reaction_type,
           created_at,
           users(id, first_name, last_name)
+        ),
+        project_chat_attachments(
+          id,
+          file_name,
+          file_size,
+          file_type,
+          file_url,
+          created_at
         )
       `)
       .eq('project_id', projectId)
@@ -149,7 +158,13 @@ export async function GET(request: NextRequest) {
       isEdited: msg.is_edited,
       messageType: msg.message_type,
       replyTo: msg.reply_to,
-      attachments: [], // TODO: Fetch attachments
+      attachments: (msg.project_chat_attachments || []).map((attachment: any) => ({
+        id: attachment.id,
+        fileName: attachment.file_name,
+        fileSize: attachment.file_size,
+        fileType: attachment.file_type,
+        url: attachment.file_url
+      })),
       reactions: (msg.project_chat_reactions || []).map((reaction: any) => ({
         id: reaction.id,
         type: reaction.reaction_type,
@@ -174,11 +189,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    // Check if this is a multipart form data request (with files)
+    const contentType = request.headers.get('content-type') || '';
+    let body: any;
+    let attachments: File[] = [];
+
+    if (contentType.includes('multipart/form-data')) {
+      // Handle file upload
+      const formData = await request.formData();
+      body = {
+        projectId: formData.get('projectId') as string,
+        content: formData.get('content') as string,
+        messageType: formData.get('messageType') as string || 'text',
+        replyTo: formData.get('replyTo') as string
+      };
+
+      // Get all files from form data
+      const fileEntries = Array.from(formData.entries()).filter(([key]) => key.startsWith('file_'));
+      attachments = fileEntries.map(([, value]) => value as File);
+    } else {
+      // Handle JSON request
+      body = await request.json();
+    }
+
     const { projectId, content, messageType = 'text', replyTo } = body;
 
-    if (!projectId || !content) {
-      return NextResponse.json({ error: 'Project ID and content are required' }, { status: 400 });
+    if (!projectId || (!content && attachments.length === 0)) {
+      return NextResponse.json({ error: 'Project ID and content or attachments are required' }, { status: 400 });
     }
 
     // Check if user has access to this project
@@ -235,8 +272,8 @@ export async function POST(request: NextRequest) {
       .insert({
         project_id: projectId,
         user_id: user.userId,
-        content,
-        message_type: messageType,
+        content: content || '',
+        message_type: attachments.length > 0 ? 'file' : messageType,
         reply_to: replyTo || null,
         organization_id: user.organizationId
       })
@@ -259,6 +296,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 
+    // Upload attachments if any
+    const uploadedAttachments = [];
+    for (const file of attachments) {
+      try {
+        const { storagePath, storageUrl } = await uploadChatAttachmentToStorage(file, user.userId, message.id);
+        
+        const { data: attachment, error: attachmentError } = await supabase
+          .from('project_chat_attachments')
+          .insert({
+            message_id: message.id,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            file_url: storageUrl
+          })
+          .select()
+          .single();
+
+        if (attachmentError) {
+          console.error('Error creating attachment record:', attachmentError);
+          // Don't fail the whole message for attachment errors
+          continue;
+        }
+
+        uploadedAttachments.push({
+          id: attachment.id,
+          fileName: attachment.file_name,
+          fileSize: attachment.file_size,
+          fileType: attachment.file_type,
+          url: attachment.file_url
+        });
+      } catch (uploadError) {
+        console.error('Error uploading attachment:', uploadError);
+        // Continue with other attachments
+      }
+    }
+
     // Format message to match ChatMessage interface
     const formattedMessage = {
       id: message.id,
@@ -272,7 +346,7 @@ export async function POST(request: NextRequest) {
       isEdited: message.is_edited,
       messageType: message.message_type,
       replyTo: message.reply_to,
-      attachments: [],
+      attachments: uploadedAttachments,
       reactions: []
     };
 

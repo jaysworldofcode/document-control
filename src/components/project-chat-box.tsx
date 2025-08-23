@@ -193,35 +193,60 @@ export function ProjectChatBox({
 
     setIsSending(true);
     try {
-      const messageData = {
-        projectId,
-        content: newMessage,
-        messageType: attachments.length > 0 ? 'file' : 'text',
-        replyTo: replyingTo?.id,
-        attachments: attachments.map((file, index) => ({
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          url: URL.createObjectURL(file) // In production, upload to storage first
-        }))
-      };
+      if (attachments.length > 0) {
+        // Use FormData for file uploads
+        const formData = new FormData();
+        formData.append('projectId', projectId);
+        formData.append('content', newMessage);
+        formData.append('messageType', 'file');
+        if (replyingTo?.id) {
+          formData.append('replyTo', replyingTo.id);
+        }
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messageData)
-      });
+        // Add all files to FormData
+        attachments.forEach((file, index) => {
+          formData.append(`file_${index}`, file);
+        });
 
-      if (response.ok) {
-        // Message will be added via realtime subscription
-        setNewMessage('');
-        setAttachments([]);
-        setReplyingTo(null);
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        if (response.ok) {
+          // Message will be added via realtime subscription
+          setNewMessage('');
+          setAttachments([]);
+          setReplyingTo(null);
+        } else {
+          console.error('Failed to send message with attachments');
+        }
       } else {
-        console.error('Failed to send message');
+        // Use JSON for text-only messages
+        const messageData = {
+          projectId,
+          content: newMessage,
+          messageType: 'text',
+          replyTo: replyingTo?.id
+        };
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(messageData)
+        });
+
+        if (response.ok) {
+          // Message will be added via realtime subscription
+          setNewMessage('');
+          setReplyingTo(null);
+        } else {
+          console.error('Failed to send message');
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -237,6 +262,23 @@ export function ProjectChatBox({
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDownloadAttachment = async (url: string, fileName: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+    }
   };
 
   const handleReaction = async (messageId: string, reactionType: ChatReaction['type']) => {
@@ -424,7 +466,12 @@ export function ProjectChatBox({
                                 <div key={index} className="flex items-center gap-2 text-xs">
                                   <File className="h-3 w-3" />
                                   <span className="truncate">{attachment.fileName}</span>
-                                  <Button size="icon" variant="ghost" className="h-4 w-4">
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-4 w-4"
+                                    onClick={() => handleDownloadAttachment(attachment.url, attachment.fileName)}
+                                  >
                                     <Download className="h-3 w-3" />
                                   </Button>
                                 </div>
