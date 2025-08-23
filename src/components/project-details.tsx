@@ -363,14 +363,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          {/* <Button variant="outline">
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </Button>
           <Button variant="outline">
             <Share className="h-4 w-4 mr-2" />
             Share
-          </Button>
+          </Button> */}
         </div>
       </div>
 

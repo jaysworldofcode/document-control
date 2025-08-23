@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,13 @@ import {
   GitBranch,
   ChevronDown,
   ChevronRight,
-  Eye
+  Eye,
+  CheckCircle,
+  ArrowRight,
+  FileDown,
+  History,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 
 interface VersionHistoryModalProps {
@@ -33,6 +39,21 @@ interface VersionHistoryModalProps {
   onViewVersion?: (version: string) => void;
 }
 
+interface VersionData {
+  id: string;
+  version: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  changes: string;
+  filePath: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
+  downloadUrl?: string;
+  isCurrent: boolean;
+  description?: string;
+}
+
 export function VersionHistoryModal({ 
   document, 
   isOpen, 
@@ -40,8 +61,50 @@ export function VersionHistoryModal({
   onViewVersion 
 }: VersionHistoryModalProps) {
   const [expandedRevisions, setExpandedRevisions] = useState<Set<string>>(new Set());
+  const [versions, setVersions] = useState<VersionData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!document) return null;
+  // Fetch version history when modal opens
+  useEffect(() => {
+    if (isOpen && document) {
+      fetchVersionHistory();
+    }
+  }, [isOpen, document]);
+
+  const fetchVersionHistory = async () => {
+    if (!document) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/documents/${document.id}/versions`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch version history');
+      }
+      
+      const data = await response.json();
+      setVersions(data.versions || []);
+    } catch (err) {
+      console.error('Error fetching version history:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load version history');
+      
+      // Fallback: create a basic version list with current document
+      const fallbackVersion: VersionData = {
+        id: `current-${document.version}`,
+        version: document.version,
+        uploadedBy: document.lastModifiedBy,
+        uploadedAt: document.lastModified,
+        changes: 'Current version of the document',
+        filePath: document.sharePointPath,
+        isCurrent: true
+      };
+      setVersions([fallbackVersion]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const toggleRevisionExpansion = (revisionId: string) => {
     const newExpanded = new Set(expandedRevisions);
@@ -53,238 +116,288 @@ export function VersionHistoryModal({
     setExpandedRevisions(newExpanded);
   };
 
-  const handleDownloadVersion = (revision: DocumentRevision) => {
+  const handleDownloadVersion = (version: VersionData) => {
     // In a real app, this would download the specific version
-    console.log("Downloading version:", revision.version, "of document:", document.name);
-    // Create a temporary link to simulate download
-    const link = window.document.createElement('a');
-    link.href = '#';
-    link.download = `${document.fileName.replace(/\.[^/.]+$/, "")}_v${revision.version}.${document.fileType}`;
-    link.click();
+    console.log("Downloading version:", version.version, "of document:", document?.name);
+    
+    if (version.downloadUrl) {
+      // Use the actual download URL if available
+      window.open(version.downloadUrl, '_blank');
+    } else {
+      // Create a temporary link to simulate download
+      const link = window.document.createElement('a');
+      link.href = '#';
+      link.download = `${version.fileName || document?.fileName || 'document'}_v${version.version}.${version.fileType || document?.fileType || 'pdf'}`;
+      link.click();
+    }
   };
 
-  const getVersionType = (currentVersion: string, revisionVersion: string): string => {
-    if (currentVersion === revisionVersion) return "Current";
-    return "Previous";
+  if (!document) return null;
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const getVersionBadgeVariant = (currentVersion: string, revisionVersion: string) => {
-    if (currentVersion === revisionVersion) return "default";
-    return "secondary";
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes || bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
-  // Sort revisions by version (newest first)
-  const sortedRevisions = [...document.revisionHistory].sort((a, b) => {
-    const aVersion = parseFloat(a.version);
-    const bVersion = parseFloat(b.version);
-    return bVersion - aVersion;
-  });
-
-  // Add current version to the list if it's not in revision history
-  const currentVersionInHistory = sortedRevisions.some(rev => rev.version === document.version);
-  const allVersions = currentVersionInHistory ? sortedRevisions : [
-    {
-      id: `current-${document.version}`,
-      version: document.version,
-      uploadedBy: document.lastModifiedBy,
-      uploadedAt: document.lastModified,
-      changes: "Current version",
-      filePath: document.sharePointPath
-    },
-    ...sortedRevisions
-  ];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <GitBranch className="h-5 w-5" />
-            Version History - {document.name}
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+        <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <GitBranch className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <div className="font-semibold text-gray-900">Version History</div>
+              <div className="text-sm font-normal text-gray-600">
+                {document.name}
+              </div>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="max-h-[calc(90vh-8rem)] overflow-y-auto">
-          <div className="space-y-4">
-            {/* Document Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Document Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Current Version</span>
-                    <p className="font-medium">v{document.version}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Total Versions</span>
-                    <p className="font-medium">{allVersions.length}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Last Modified</span>
-                    <p className="font-medium">
-                      {new Date(document.lastModified).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
+        <ScrollArea className="max-h-[calc(90vh-8rem)]">
+          <div className="p-6 space-y-6">
+            {/* Compact Document Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                <div className="p-2 bg-blue-500/20 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                  <Hash className="h-5 w-5 text-blue-600" />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Separator />
-
-            {/* Version Timeline */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Version Timeline
-              </h3>
-
-              {allVersions.map((revision, index) => {
-                const isExpanded = expandedRevisions.has(revision.id);
-                const isCurrentVersion = revision.version === document.version;
-                
-                return (
-                  <Card key={revision.id} className={isCurrentVersion ? "ring-2 ring-primary" : ""}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          {/* Version Timeline Indicator */}
-                          <div className="flex flex-col items-center mt-1">
-                            <div className={`w-4 h-4 rounded-full border-2 ${
-                              isCurrentVersion 
-                                ? 'bg-primary border-primary' 
-                                : 'bg-muted border-muted-foreground'
-                            }`} />
-                            {index < allVersions.length - 1 && (
-                              <div className="w-0.5 h-8 bg-muted-foreground/30 mt-1" />
-                            )}
-                          </div>
-
-                          {/* Version Information */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge 
-                                variant={getVersionBadgeVariant(document.version, revision.version)}
-                                className="flex items-center gap-1"
-                              >
-                                <Hash className="h-3 w-3" />
-                                v{revision.version}
-                              </Badge>
-                              {isCurrentVersion && (
-                                <Badge variant="outline" className="text-xs">
-                                  Current
-                                </Badge>
-                              )}
-                              <span className="text-sm text-muted-foreground">
-                                {getVersionType(document.version, revision.version)} Version
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                {revision.uploadedBy}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {new Date(revision.uploadedAt).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Version Changes Preview */}
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleRevisionExpansion(revision.id)}
-                                className="h-6 px-2 text-xs"
-                              >
-                                {isExpanded ? (
-                                  <ChevronDown className="h-3 w-3 mr-1" />
-                                ) : (
-                                  <ChevronRight className="h-3 w-3 mr-1" />
-                                )}
-                                {revision.changes ? 'View Changes' : 'View Details'}
-                              </Button>
-                            </div>
-
-                            {/* Expanded Details */}
-                            {isExpanded && (
-                              <div className="mt-3 p-3 bg-muted/50 rounded-lg">
-                                <h4 className="text-sm font-medium mb-2">Version Details</h4>
-                                <p className="text-sm text-muted-foreground mb-3">
-                                  {revision.changes || 'No change description available.'}
-                                </p>
-                                
-                                {revision.filePath && (
-                                  <div className="text-xs text-muted-foreground">
-                                    <strong>File Path:</strong> {revision.filePath}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-2 ml-4">
-                          {onViewVersion && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onViewVersion(revision.version)}
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadVersion(revision)}
-                          >
-                            <Download className="h-3 w-3 mr-1" />
-                            Download
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                <div className="text-xl font-bold text-blue-700">v{document.version}</div>
+                <div className="text-xs text-blue-600 font-medium">Current</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                <div className="p-2 bg-green-500/20 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                  <History className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="text-xl font-bold text-green-700">
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : versions.length}
+                </div>
+                <div className="text-xs text-green-600 font-medium">Total</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                <div className="p-2 bg-purple-500/20 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-purple-600" />
+                </div>
+                <div className="text-lg font-bold text-purple-700">
+                  {formatDate(document.lastModified).split(',')[0]}
+                </div>
+                <div className="text-xs text-purple-600 font-medium">Modified</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                <div className="p-2 bg-orange-500/20 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                  <User className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="text-sm font-bold text-orange-700 truncate">
+                  {document.lastModifiedBy}
+                </div>
+                <div className="text-xs text-orange-600 font-medium">Author</div>
+              </div>
             </div>
 
-            {/* Version Comparison Note */}
-            <Card className="bg-muted/50">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <GitBranch className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <h4 className="font-medium mb-1">Version Management</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Each version represents a complete snapshot of the document at that point in time. 
-                      You can download any previous version or view its details by expanding the version entry.
-                    </p>
+            {/* Error Display */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">Error loading version history: {error}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Version Timeline */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Version Timeline</h3>
+                <Badge variant="outline" className="ml-auto bg-blue-50 text-blue-700 border-blue-200">
+                  {versions.length} version{versions.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                    <span className="text-gray-600">Loading version history...</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              ) : versions.length === 0 ? (
+                <div className="text-center py-8">
+                  <History className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <h4 className="text-lg font-medium text-gray-600 mb-1">No Version History</h4>
+                  <p className="text-gray-500 text-sm">
+                    This document doesn't have any previous versions yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {versions.map((version, index) => {
+                    const isExpanded = expandedRevisions.has(version.id);
+                    const isCurrentVersion = version.isCurrent;
+                    
+                    return (
+                      <div key={version.id} className="group">
+                        {/* Version Card - Compact Design */}
+                        <Card className={`transition-all duration-200 hover:shadow-md border-l-4 ${
+                          isCurrentVersion 
+                            ? 'border-l-blue-500 bg-blue-50/50' 
+                            : 'border-l-gray-300 hover:border-l-gray-400'
+                        }`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              {/* Left Side - Version Info */}
+                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                {/* Version Badge */}
+                                <div className="flex items-center gap-2">
+                                  <Badge 
+                                    variant={isCurrentVersion ? "default" : "secondary"}
+                                    className="text-xs font-medium px-2 py-1"
+                                  >
+                                    v{version.version}
+                                  </Badge>
+                                  {isCurrentVersion && (
+                                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-200">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Current
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {/* Metadata */}
+                                <div className="flex items-center gap-4 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    <span className="font-medium text-gray-700">{version.uploadedBy}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{formatDate(version.uploadedAt)}</span>
+                                  </div>
+                                  {version.fileSize && (
+                                    <div className="flex items-center gap-1">
+                                      <FileText className="h-3 w-3" />
+                                      <span>{formatFileSize(version.fileSize)}</span>
+                                    </div>
+                                  )}
+                                  {version.fileType && (
+                                    <div className="flex items-center gap-1">
+                                      <FileText className="h-3 w-3" />
+                                      <span className="uppercase text-xs font-medium bg-gray-100 px-2 py-0.5 rounded">
+                                        {version.fileType}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right Side - Actions */}
+                              <div className="flex items-center gap-2">
+                                {/* Expand Details Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleRevisionExpansion(version.id)}
+                                  className="h-7 px-2 text-xs hover:bg-gray-100"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-3 w-3" />
+                                  ) : (
+                                    <ChevronRight className="h-3 w-3" />
+                                  )}
+                                </Button>
+
+                                {/* Action Buttons */}
+                                {onViewVersion && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onViewVersion(version.version)}
+                                    className="h-7 px-2 text-xs"
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    View
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadVersion(version)}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  <FileDown className="h-3 w-3 mr-1" />
+                                  Download
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Expanded Details - Compact */}
+                            {isExpanded && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="bg-white rounded-lg p-3 border">
+                                  <h4 className="text-sm font-medium text-gray-700 mb-2">Version Details</h4>
+                                  <p className="text-sm text-gray-600 mb-2">
+                                    {version.changes}
+                                  </p>
+                                  
+                                  {version.description && (
+                                    <div className="text-sm text-gray-600 mb-2">
+                                      <strong>Description:</strong> {version.description}
+                                    </div>
+                                  )}
+                                  
+                                  {version.filePath && (
+                                    <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
+                                      <strong>Path:</strong> {version.filePath}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Compact Info Footer */}
+            <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg">
+                  <GitBranch className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-gray-900 mb-1">Version Management</h4>
+                  <p className="text-gray-600 text-sm">
+                    Each version represents a complete snapshot. Expand entries to view details or download specific versions.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
