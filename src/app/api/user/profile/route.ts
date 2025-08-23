@@ -58,8 +58,8 @@ export const PUT = requireAuth(async (request: NextRequest, auth) => {
         email: email,
       })
       .eq('id', auth.userId)
-      .select('id, email, first_name, last_name, organization_id, role')
-      .single()
+      .select('id, email, first_name, last_name, organization_id, role, avatar_url, avatar_thumbnail_url')
+      .single();
 
     if (userError || !user) {
       console.error('User update error:', userError)
@@ -78,6 +78,8 @@ export const PUT = requireAuth(async (request: NextRequest, auth) => {
         lastName: user.last_name,
         organizationId: user.organization_id,
         role: user.role,
+        avatarUrl: user.avatar_url,
+        avatarThumbnailUrl: user.avatar_thumbnail_url,
       },
     })
 

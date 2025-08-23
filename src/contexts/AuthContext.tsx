@@ -9,6 +9,8 @@ interface User {
   lastName: string;
   organizationId: string | null;
   role: 'owner' | 'admin' | 'member';
+  avatarUrl?: string;
+  avatarThumbnailUrl?: string;
 }
 
 interface AuthContextType {

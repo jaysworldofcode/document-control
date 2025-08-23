@@ -14,35 +14,154 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Camera, Upload, Check, X } from "lucide-react";
+import { Camera, Upload, Check, X, Loader2, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { compressImage, validateImageFile } from "@/utils/image-compression";
 
 interface AvatarUploadProps {
   currentAvatar?: string;
   onAvatarChange?: (avatar: string) => void;
+  onAvatarRemove?: () => void;
 }
 
-export function AvatarUpload({ currentAvatar, onAvatarChange }: AvatarUploadProps) {
+export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: AvatarUploadProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const { toast } = useToast();
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+    if (file) {
+      // Validate the file
+      const validation = validateImageFile(file);
+      if (!validation.isValid) {
+        toast({
+          variant: "destructive",
+          title: "Invalid file",
+          description: validation.error || "Please select a valid image file.",
+        });
+        return;
+      }
+      
+      try {
+        // Compress the image before setting it
+        const compressedFile = await compressImage(file, {
+          maxWidth: 400,
+          maxHeight: 400,
+          quality: 0.8,
+          format: 'image/jpeg'
+        });
+        
+        setSelectedFile(compressedFile);
+        const url = URL.createObjectURL(compressedFile);
+        setPreviewUrl(url);
+        
+        // Show compression info
+        const originalSize = (file.size / 1024 / 1024).toFixed(2);
+        const compressedSize = (compressedFile.size / 1024 / 1024).toFixed(2);
+        const savings = ((file.size - compressedFile.size) / file.size * 100).toFixed(1);
+        
+        toast({
+          title: "Image compressed",
+          description: `Compressed from ${originalSize}MB to ${compressedSize}MB (${savings}% smaller)`,
+        });
+      } catch (error) {
+        console.error('Image compression failed:', error);
+        // Fallback to original file
+        setSelectedFile(file);
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+        
+        toast({
+          title: "Compression failed",
+          description: "Using original image file.",
+        });
+      }
     }
   };
 
-  const handleUpload = () => {
-    if (selectedFile && previewUrl) {
-      // In a real app, this would upload to a server
-      console.log("Uploading avatar:", selectedFile.name);
-      onAvatarChange?.(previewUrl);
+  const handleUpload = async () => {
+    if (!selectedFile || !previewUrl) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      
+      // Call the callback with the new avatar URL (both full and thumbnail)
+      onAvatarChange?.(result.avatarUrl);
+      
+      // Clean up
       setIsDialogOpen(false);
       setSelectedFile(null);
-      setPreviewUrl(null);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+
+      toast({
+        title: "Success",
+        description: "Profile image uploaded successfully!",
+      });
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload image",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!currentAvatar) return;
+
+    setIsRemoving(true);
+    try {
+      const response = await fetch('/api/user/avatar', {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Remove failed');
+      }
+
+      // Call the callback to remove avatar
+      onAvatarRemove?.();
+      
+      toast({
+        title: "Success",
+        description: "Profile image removed successfully!",
+      });
+
+    } catch (error) {
+      console.error('Remove error:', error);
+      toast({
+        variant: "destructive",
+        title: "Remove failed",
+        description: error instanceof Error ? error.message : "Failed to remove image",
+      });
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -70,7 +189,7 @@ export function AvatarUpload({ currentAvatar, onAvatarChange }: AvatarUploadProp
         <DialogHeader>
           <DialogTitle>Update Profile Picture</DialogTitle>
           <DialogDescription>
-            Choose a new profile picture. Recommended size is 400x400px.
+            Choose a new profile picture. Recommended size is 400x400px. Maximum file size is 5MB.
           </DialogDescription>
         </DialogHeader>
 
@@ -79,6 +198,8 @@ export function AvatarUpload({ currentAvatar, onAvatarChange }: AvatarUploadProp
             <div className="w-32 h-32 rounded-full border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden">
               {previewUrl ? (
                 <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+              ) : currentAvatar ? (
+                <img src={currentAvatar} alt="Current avatar" className="w-full h-full object-cover" />
               ) : (
                 <div className="text-center">
                   <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -104,6 +225,24 @@ export function AvatarUpload({ currentAvatar, onAvatarChange }: AvatarUploadProp
               Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
             </div>
           )}
+
+          {currentAvatar && !selectedFile && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={handleRemove}
+                disabled={isRemoving}
+                className="text-destructive hover:text-destructive"
+              >
+                {isRemoving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Remove Current Image
+              </Button>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -113,10 +252,14 @@ export function AvatarUpload({ currentAvatar, onAvatarChange }: AvatarUploadProp
           </Button>
           <Button 
             onClick={handleUpload}
-            disabled={!selectedFile}
+            disabled={!selectedFile || isUploading}
           >
-            <Check className="h-4 w-4 mr-2" />
-            Upload
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
+            {isUploading ? 'Uploading...' : 'Upload'}
           </Button>
         </DialogFooter>
       </DialogContent>

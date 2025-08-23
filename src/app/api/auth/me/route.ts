@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Get user details from database
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
-      .select('id, email, first_name, last_name, organization_id, role')
+      .select('id, email, first_name, last_name, organization_id, role, avatar_url, avatar_thumbnail_url')
       .eq('id', auth.userId)
       .single()
 
@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
         lastName: user.last_name,
         organizationId: user.organization_id,
         role: user.role,
+        avatarUrl: user.avatar_url,
+        avatarThumbnailUrl: user.avatar_thumbnail_url,
       },
     })
 

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { AppLayout } from "@/components/layout/app-layout";
 import { AvatarUpload, PasswordStrength } from "@/components/settings/settings-components";
+import { AvatarDisplay } from "@/components/ui/avatar-display";
 import { 
   User,
   Lock,
@@ -620,13 +621,26 @@ export default function SettingsPage() {
                 {/* Profile Header */}
                 <div className="flex items-center gap-6">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-10 w-10 text-primary" />
-                    </div>
+                    <AvatarDisplay
+                      avatarUrls={{
+                        full: user?.avatarUrl,
+                        thumbnail: user?.avatarThumbnailUrl
+                      }}
+                      size="large"
+                      alt={`${user?.firstName} ${user?.lastName}`}
+                      className="w-20 h-20"
+                    />
                     <AvatarUpload 
-                      currentAvatar={"/api/placeholder/100/100"}
-                      onAvatarChange={(newAvatar) => {
+                      currentAvatar={user?.avatarUrl || undefined}
+                      onAvatarChange={async (newAvatar) => {
                         console.log('Avatar changed:', newAvatar);
+                        // Refresh user data to get the new avatar
+                        await refreshUser();
+                      }}
+                      onAvatarRemove={async () => {
+                        console.log('Avatar removed');
+                        // Refresh user data to reflect the removed avatar
+                        await refreshUser();
                       }}
                     />
                   </div>
