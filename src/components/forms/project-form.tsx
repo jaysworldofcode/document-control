@@ -31,9 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { UserSelector } from "@/components/ui/user-selector";
-import { Project, ProjectFormData, CustomField, CustomFieldFormData } from '@/types/project.types';
+import { Project, ProjectFormData, CustomField, CustomFieldFormData, SharePointConfigFormData } from '@/types/project.types';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, CUSTOM_FIELD_TYPES } from '@/types/project.types';
-import { EXCEL_SHEET_TEMPLATES } from '@/constants/project.constants';
 import { 
   Loader2, 
   AlertCircle, 
@@ -165,10 +164,8 @@ export function ProjectForm({
     endDate: '',
     budget: '',
     client: '',
-    sharePointSiteUrl: '',
-    sharePointDocumentLibrary: '',
-    sharePointExcelPath: '',
-    enableExcelLogging: false,
+    // Multiple SharePoint configurations
+    sharePointConfigs: [],
     customFields: []
   });
   
@@ -181,6 +178,17 @@ export function ProjectForm({
     helpText: '',
     options: '',
     defaultValue: ''
+  });
+  
+  // State for new SharePoint configuration
+  const [newSharePointConfig, setNewSharePointConfig] = useState<SharePointConfigFormData>({
+    id: '',
+    name: '',
+    siteUrl: '',
+    documentLibrary: 'Documents',
+    folderPath: '',
+    excelPath: '',
+    enableExcelLogging: false
   });
   
   const [isEditingField, setIsEditingField] = useState<string | null>(null);
@@ -210,10 +218,7 @@ export function ProjectForm({
         endDate: project.endDate,
         budget: project.budget,
         client: project.client,
-        sharePointSiteUrl: project.sharePointConfig.siteUrl || '',
-        sharePointDocumentLibrary: project.sharePointConfig.documentLibrary || 'Documents',
-        sharePointExcelPath: project.sharePointConfig.excelSheetPath || '',
-        enableExcelLogging: project.sharePointConfig.isExcelLoggingEnabled,
+        sharePointConfigs: project.sharePointConfigs || [],
         customFields: project.customFields
       });
     } else {
@@ -228,10 +233,7 @@ export function ProjectForm({
         endDate: '',
         budget: '',
         client: '',
-        sharePointSiteUrl: '',
-        sharePointDocumentLibrary: 'Documents',
-        sharePointExcelPath: '',
-        enableExcelLogging: false,
+        sharePointConfigs: [],
         customFields: []
       });
     }
@@ -241,15 +243,6 @@ export function ProjectForm({
 
   const handleInputChange = (field: keyof ProjectFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSharePointTemplateSelect = (template: string) => {
-    const excelTemplate = EXCEL_SHEET_TEMPLATES.find(t => t.category === template);
-    
-    if (excelTemplate) {
-      handleInputChange('sharePointExcelPath', excelTemplate.path);
-      handleInputChange('enableExcelLogging', true);
-    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -380,6 +373,43 @@ export function ProjectForm({
     }));
   };
 
+  // SharePoint configuration management functions
+  const addSharePointConfig = () => {
+    if (!newSharePointConfig.name || !newSharePointConfig.siteUrl) {
+      setErrors(['Configuration name and SharePoint site URL are required']);
+      return;
+    }
+
+    const configWithId: SharePointConfigFormData = {
+      ...newSharePointConfig,
+      id: `sp_config_${Date.now()}`
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      sharePointConfigs: (prev.sharePointConfigs || []).concat(configWithId)
+    }));
+
+    // Reset the form
+    setNewSharePointConfig({
+      id: '',
+      name: '',
+      siteUrl: '',
+      documentLibrary: 'Documents',
+      folderPath: '',
+      excelPath: '',
+      enableExcelLogging: false
+    });
+    setErrors([]);
+  };
+
+  const removeSharePointConfig = (configId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sharePointConfigs: (prev.sharePointConfigs || []).filter(config => config.id !== configId)
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -389,8 +419,7 @@ export function ProjectForm({
     if (!formData.description) validationErrors.push('Project description is required');
     if (!formData.managers || formData.managers.length === 0) validationErrors.push('At least one project manager is required');
     if (!formData.startDate) validationErrors.push('Start date is required');
-    if (!formData.sharePointSiteUrl) validationErrors.push('SharePoint site URL is required');
-    if (!formData.sharePointDocumentLibrary) validationErrors.push('SharePoint document library is required');
+    if (!formData.sharePointConfigs || formData.sharePointConfigs.length === 0) validationErrors.push('At least one SharePoint configuration is required');
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
@@ -597,73 +626,158 @@ export function ProjectForm({
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Globe className="h-5 w-5" />
-                    SharePoint Site Configuration
+                    SharePoint Configurations
                   </CardTitle>
                   <CardDescription>
-                    Configure the SharePoint site and document library for this project
+                    Configure multiple SharePoint integrations for this project. You can add different configurations for different document types or teams.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sharePointSiteUrl">SharePoint Site URL *</Label>
-                    <Input
-                      id="sharePointSiteUrl"
-                      value={formData.sharePointSiteUrl}
-                      onChange={(e) => handleInputChange('sharePointSiteUrl', e.target.value)}
-                      placeholder="https://company.sharepoint.com/sites/projectname"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The SharePoint site URL where project documents will be stored
-                    </p>
-                  </div>
+                  {/* Existing SharePoint Configurations */}
+                  {formData.sharePointConfigs && formData.sharePointConfigs.length > 0 && (
+                    <div className="space-y-3">
+                      <Label>Configured SharePoint Sites</Label>
+                      <div className="space-y-3">
+                        {formData.sharePointConfigs.map((config, index) => (
+                          <Card key={config.id} className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-medium">{config.name}</h4>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeSharePointConfig(config.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-3 text-sm">
+                              <div>
+                                <Label className="text-xs">Site URL</Label>
+                                <p className="text-muted-foreground">{config.siteUrl}</p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="text-xs">Document Library</Label>
+                                  <p className="text-muted-foreground">{config.documentLibrary}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Folder Path</Label>
+                                  <p className="text-muted-foreground">{config.folderPath || 'Root'}</p>
+                                </div>
+                              </div>
+                              {config.enableExcelLogging && (
+                                <div>
+                                  <Label className="text-xs">Excel Logging</Label>
+                                  <p className="text-muted-foreground">Enabled: {config.excelPath}</p>
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="sharePointDocumentLibrary">Document Library Name</Label>
-                    <Input
-                      id="sharePointDocumentLibrary"
-                      value={formData.sharePointDocumentLibrary}
-                      onChange={(e) => handleInputChange('sharePointDocumentLibrary', e.target.value)}
-                      placeholder="Documents"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The name of the document library within the SharePoint site (default: Documents)
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5" />
-                    Excel Logging Configuration
-                  </CardTitle>
-                  <CardDescription>
-                    Optional: Log document uploads to an Excel sheet for tracking
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="enableExcelLogging"
-                      checked={formData.enableExcelLogging}
-                      onCheckedChange={(checked) => handleInputChange('enableExcelLogging', checked)}
-                    />
-                    <Label htmlFor="enableExcelLogging">Enable Excel Logging</Label>
-                  </div>
-
-                  {formData.enableExcelLogging && (
-                    <div className="space-y-2">
-                      <Label htmlFor="sharePointExcelPath">Excel Sheet Path</Label>
-                      <Input
-                        id="sharePointExcelPath"
-                        value={formData.sharePointExcelPath}
-                        onChange={(e) => handleInputChange('sharePointExcelPath', e.target.value)}
-                        placeholder="/sites/CompanyDocs/Logs/DocumentLog.xlsx"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Path to the Excel file where document metadata will be logged
+                  {/* Add New SharePoint Configuration */}
+                  <div className="border-2 border-dashed border-muted rounded-lg p-6">
+                    <div className="text-center space-y-2 mb-4">
+                      <h4 className="font-medium">Add SharePoint Configuration</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Configure a new SharePoint site for document storage
                       </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="newConfigName">Configuration Name *</Label>
+                        <Input
+                          id="newConfigName"
+                          value={newSharePointConfig.name}
+                          onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g., Main Documents, Engineering Files, Design Assets"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="newConfigSiteUrl">SharePoint Site URL *</Label>
+                        <Input
+                          id="newConfigSiteUrl"
+                          value={newSharePointConfig.siteUrl}
+                          onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, siteUrl: e.target.value }))}
+                          placeholder="https://company.sharepoint.com/sites/projectname"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="newConfigLibrary">Document Library</Label>
+                          <Input
+                            id="newConfigLibrary"
+                            value={newSharePointConfig.documentLibrary}
+                            onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, documentLibrary: e.target.value }))}
+                            placeholder="Documents"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="newConfigFolder">Folder Path (Optional)</Label>
+                          <Input
+                            id="newConfigFolder"
+                            value={newSharePointConfig.folderPath}
+                            onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, folderPath: e.target.value }))}
+                            placeholder="ProjectFiles/Engineering"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="newConfigExcelLogging"
+                            checked={newSharePointConfig.enableExcelLogging}
+                            onCheckedChange={(checked) => setNewSharePointConfig(prev => ({ ...prev, enableExcelLogging: checked }))}
+                          />
+                          <Label htmlFor="newConfigExcelLogging">Enable Excel Logging</Label>
+                        </div>
+
+                        {newSharePointConfig.enableExcelLogging && (
+                          <div className="space-y-2">
+                            <Label htmlFor="newConfigExcelPath">Excel Sheet Path</Label>
+                            <Input
+                              id="newConfigExcelPath"
+                              value={newSharePointConfig.excelPath}
+                              onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, excelPath: e.target.value }))}
+                              placeholder="/DocumentLog.xlsx"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Path to the Excel file where document metadata will be logged
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={addSharePointConfig}
+                        disabled={!newSharePointConfig.name || !newSharePointConfig.siteUrl}
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add SharePoint Configuration
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(!formData.sharePointConfigs || formData.sharePointConfigs.length === 0) && (
+                    <div className="flex items-center gap-2 p-4 border rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                      <AlertCircle className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <p className="font-medium text-amber-700 dark:text-amber-300">At least one SharePoint configuration required</p>
+                        <p className="text-sm text-amber-600 dark:text-amber-400">
+                          You need to configure at least one SharePoint site to store project documents.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </CardContent>

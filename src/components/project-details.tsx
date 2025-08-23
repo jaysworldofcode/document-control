@@ -54,7 +54,8 @@ import {
   ClipboardList,
   Send,
   Loader2,
-  GitBranch
+  GitBranch,
+  Globe
 } from "lucide-react";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project } from "@/types/project.types";
@@ -558,47 +559,140 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             </Card>
           </div>
 
-          {/* SharePoint Configuration */}
+          {/* SharePoint Configurations */}
           <Card>
             <CardHeader>
-              <CardTitle>SharePoint Configuration</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5" />
+                SharePoint Configurations
+              </CardTitle>
               <CardDescription>
-                Document storage and collaboration settings
+                Document storage locations and collaboration settings
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Site URL</label>
-                  <p className="mt-1 font-mono text-sm bg-muted p-2 rounded">
-                    {project.sharePointConfig.siteUrl || 'Not configured'}
-                  </p>
+              {(project.sharePointConfigs && project.sharePointConfigs.length > 0) || project.sharePointConfig ? (
+                <div className="space-y-4">
+                  {/* Show multiple configurations if available */}
+                  {project.sharePointConfigs && project.sharePointConfigs.length > 0 ? (
+                    <>
+                      {project.sharePointConfigs.map((config, index) => (
+                        <div key={config.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">{config.name}</h4>
+                              <Badge variant="outline" className="text-xs">
+                                {config.documentLibrary}
+                              </Badge>
+                              {config.isDefault && (
+                                <Badge variant="default" className="text-xs">
+                                  Default
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2 text-sm">
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Site URL</label>
+                              <p className="mt-1 font-mono text-xs bg-muted p-2 rounded break-all">
+                                {config.siteUrl}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Document Library</label>
+                              <p className="mt-1 font-mono text-xs bg-muted p-2 rounded">
+                                {config.documentLibrary}
+                              </p>
+                            </div>
+                            {config.folderPath && (
+                              <div>
+                                <label className="text-xs font-medium text-muted-foreground">Folder Path</label>
+                                <p className="mt-1 font-mono text-xs bg-muted p-2 rounded">
+                                  {config.folderPath}
+                                </p>
+                              </div>
+                            )}
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Excel Logging</label>
+                              <p className="mt-1">
+                                {config.isExcelLoggingEnabled ? (
+                                  <span className="text-green-600 text-xs">Enabled</span>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">Disabled</span>
+                                )}
+                              </p>
+                            </div>
+                            {config.excelSheetPath && (
+                              <div className="md:col-span-2">
+                                <label className="text-xs font-medium text-muted-foreground">Excel Sheet Path</label>
+                                <p className="mt-1 font-mono text-xs bg-muted p-2 rounded">
+                                  {config.excelSheetPath}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="text-center py-2 text-xs text-muted-foreground bg-muted/50 rounded-lg">
+                        ✓ Documents will be automatically uploaded to all {project.sharePointConfigs.length} configured location{project.sharePointConfigs.length !== 1 ? 's' : ''}
+                      </div>
+                    </>
+                  ) : (
+                    /* Fallback to single configuration */
+                    <div className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium">Default Configuration</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {project.sharePointConfig.documentLibrary}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 text-sm">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Site URL</label>
+                          <p className="mt-1 font-mono text-xs bg-muted p-2 rounded break-all">
+                            {project.sharePointConfig.siteUrl}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Document Library</label>
+                          <p className="mt-1 font-mono text-xs bg-muted p-2 rounded">
+                            {project.sharePointConfig.documentLibrary}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Excel Logging</label>
+                          <p className="mt-1">
+                            {project.sharePointConfig.isExcelLoggingEnabled ? (
+                              <span className="text-green-600 text-xs">Enabled</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Disabled</span>
+                            )}
+                          </p>
+                        </div>
+                        {project.sharePointConfig.excelSheetPath && (
+                          <div className="md:col-span-2">
+                            <label className="text-xs font-medium text-muted-foreground">Excel Sheet Path</label>
+                            <p className="mt-1 font-mono text-xs bg-muted p-2 rounded">
+                              {project.sharePointConfig.excelSheetPath}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-center py-2 text-xs text-muted-foreground bg-muted/50 rounded-lg mt-3">
+                        ✓ Documents will be automatically uploaded to this SharePoint location
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Document Library</label>
-                  <p className="mt-1 font-mono text-sm bg-muted p-2 rounded">
-                    {project.sharePointConfig.documentLibrary || 'Documents'}
-                  </p>
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Globe className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm">No SharePoint configurations found</p>
+                  <p className="text-xs">Configure SharePoint integration in project settings to enable document storage</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Excel Logging</label>
-                  <p className="mt-1">
-                    {project.sharePointConfig.isExcelLoggingEnabled ? (
-                      <span className="text-green-600">Enabled</span>
-                    ) : (
-                      <span className="text-muted-foreground">Disabled</span>
-                    )}
-                  </p>
-                </div>
-                {project.sharePointConfig.excelSheetPath && (
-                  <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-muted-foreground">Excel Sheet Path</label>
-                    <p className="mt-1 font-mono text-sm bg-muted p-2 rounded">
-                      {project.sharePointConfig.excelSheetPath}
-                    </p>
-                  </div>
-                )}
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -918,12 +1012,24 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             setProjectDocuments(prev => [newDocument, ...prev]);
             
             // Show success message
-            toast({
-              title: "Document uploaded successfully",
-              description: `${data.file.name} has been uploaded to SharePoint and saved to the project.`,
-            });
+            const uploadCount = result.uploadResults?.length || 1;
+            const errorCount = result.uploadErrors?.length || 0;
             
-            setIsUploadModalOpen(false);
+            if (errorCount > 0) {
+              toast({
+                title: "Document uploaded with some issues",
+                description: `${data.file.name} uploaded to ${uploadCount} SharePoint location${uploadCount !== 1 ? 's' : ''}. ${errorCount} upload${errorCount !== 1 ? 's' : ''} failed.`,
+                variant: "default",
+              });
+            } else {
+              toast({
+                title: "Document uploaded successfully",
+                description: `${data.file.name} has been uploaded to all ${uploadCount} SharePoint location${uploadCount !== 1 ? 's' : ''} and saved to the project.`,
+              });
+            }
+            
+            // Return the upload results to the modal
+            return result;
           } catch (error) {
             console.error("Failed to upload document:", error);
             

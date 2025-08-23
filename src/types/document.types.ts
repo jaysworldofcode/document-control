@@ -83,3 +83,27 @@ export interface DocumentUploadData {
   tags: string[];
   customFieldValues: Record<string, any>;
 }
+
+export interface DocumentUploadResult {
+  success: boolean;
+  document: Document;
+  uploadResults: Array<{
+    configId: string;
+    configName: string;
+    sharePointPath: string;
+    sharePointId: string;
+    downloadUrl: string;
+    siteUrl: string;
+    documentLibrary: string;
+  }>;
+  uploadErrors: Array<{
+    configName: string;
+    error: string;
+  }>;
+  summary: {
+    totalConfigurations: number;
+    successfulUploads: number;
+    failedUploads: number;
+  };
+  message: string;
+}

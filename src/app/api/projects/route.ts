@@ -152,11 +152,7 @@ export async function POST(request: NextRequest) {
       clientId,
       managerIds = [],
       teamIds = [],
-      sharePointSiteUrl,
-      sharePointDocumentLibrary = 'Documents',
-      sharePointExcelPath,
-      sharePointExcelId,
-      enableExcelLogging = false,
+      sharePointConfigs = [],
       customFields = [],
       tags = [],
       category
@@ -165,6 +161,17 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!name || !startDate) {
       return NextResponse.json({ error: 'Name and start date are required' }, { status: 400 });
+    }
+
+    if (sharePointConfigs.length === 0) {
+      return NextResponse.json({ error: 'At least one SharePoint configuration is required' }, { status: 400 });
+    }
+
+    // Validate SharePoint configurations
+    for (const config of sharePointConfigs) {
+      if (!config.name || !config.siteUrl) {
+        return NextResponse.json({ error: 'All SharePoint configurations must have a name and site URL' }, { status: 400 });
+      }
     }
 
     // Get user's organization
@@ -192,11 +199,6 @@ export async function POST(request: NextRequest) {
         client,
         client_id: clientId,
         organization_id: userData.organization_id,
-        sharepoint_site_url: sharePointSiteUrl,
-        sharepoint_document_library: sharePointDocumentLibrary,
-        sharepoint_excel_path: sharePointExcelPath,
-        sharepoint_excel_id: sharePointExcelId,
-        excel_logging_enabled: enableExcelLogging,
         custom_fields: customFields,
         tags,
         category,
@@ -247,7 +249,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(project, { status: 201 });
+    // Create SharePoint configurations
+    if (sharePointConfigs.length > 0) {
+      // Get organization SharePoint auth settings
+      const { data: orgSharePointConfig } = await supabase
+        .from('sharepoint_configs')
+        .select('tenant_id, client_id, client_secret')
+        .eq('organization_id', userData.organization_id)
+        .eq('is_enabled', true)
+        .single();
+
+      const sharePointInserts = sharePointConfigs.map((config: any, index: number) => {
+        const baseConfig = {
+          project_id: project.id,
+          name: config.name,
+          description: `SharePoint configuration created during project setup`,
+          site_url: config.siteUrl,
+          document_library: config.documentLibrary || 'Documents',
+          folder_path: config.folderPath || '',
+          is_excel_logging_enabled: config.enableExcelLogging || false,
+          excel_sheet_path: config.excelPath || '',
+          created_by: user.userId
+        };
+
+        if (orgSharePointConfig) {
+          // Use organization auth credentials
+          return {
+            ...baseConfig,
+            tenant_id: orgSharePointConfig.tenant_id,
+            client_id: orgSharePointConfig.client_id,
+            client_secret: orgSharePointConfig.client_secret,
+            is_enabled: true
+          };
+        } else {
+          // Create without auth credentials - requires org setup
+          return {
+            ...baseConfig,
+            tenant_id: '',
+            client_id: '',
+            client_secret: '',
+            description: `${baseConfig.description} (requires organization authentication setup)`,
+            is_enabled: false // Disabled until org auth is configured
+          };
+        }
+      });
+
+      const { error: sharePointError } = await supabase
+        .from('project_sharepoint_configs')
+        .insert(sharePointInserts);
+
+      if (sharePointError) {
+        console.error('Error creating SharePoint configurations:', sharePointError);
+        return NextResponse.json({ 
+          error: 'Project created but SharePoint configurations failed', 
+          projectId: project.id 
+        }, { status: 207 }); // Partial success
+      }
+    }
+
+    const hasOrgAuth = await supabase
+      .from('sharepoint_configs')
+      .select('id')
+      .eq('organization_id', userData.organization_id)
+      .eq('is_enabled', true)
+      .single();
+
+    const message = hasOrgAuth.data 
+      ? `Project created successfully with ${sharePointConfigs.length} SharePoint configuration(s)!`
+      : `Project created successfully with ${sharePointConfigs.length} SharePoint configuration(s)! Note: Organization SharePoint authentication needs to be configured for full functionality.`;
+
+    return NextResponse.json({
+      ...project,
+      message
+    }, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/projects:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

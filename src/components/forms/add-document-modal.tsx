@@ -28,15 +28,18 @@ import {
   X,
   FileText,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  FolderOpen,
+  CheckCircle
 } from "lucide-react";
 import { Project, CustomField } from "@/types/project.types";
-import { DocumentUploadData } from "@/types/document.types";
+import { DocumentUploadData, DocumentUploadResult } from "@/types/document.types";
 
 interface AddDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: DocumentUploadData) => Promise<void>;
+  onSubmit: (data: DocumentUploadData) => Promise<DocumentUploadResult>;
   project: Project;
   loading?: boolean;
 }
@@ -55,6 +58,9 @@ export function AddDocumentModal({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadResults, setUploadResults] = useState<any[]>([]);
+  const [uploadErrors, setUploadErrors] = useState<any[]>([]);
+  const [showResults, setShowResults] = useState(false);
 
   // Initialize custom field values
   React.useEffect(() => {
@@ -64,6 +70,15 @@ export function AddDocumentModal({
     });
     setCustomFieldValues(initialValues);
   }, [project.customFields]);
+
+  // Reset results when modal opens/closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setUploadResults([]);
+      setUploadErrors([]);
+      setShowResults(false);
+    }
+  }, [isOpen]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -223,21 +238,32 @@ export function AddDocumentModal({
 
     setIsSubmitting(true);
     try {
-      await onSubmit({
+      const result = await onSubmit({
         file,
         description,
         tags,
         customFieldValues
       });
       
-      // Reset form
-      setFile(null);
-      setDescription("");
-      setTags([]);
-      setTagInput("");
-      setCustomFieldValues({});
-      setErrors([]);
-      onClose();
+      // Show upload results if available
+      if (result && typeof result === 'object') {
+        if (result.uploadResults) {
+          setUploadResults(result.uploadResults);
+        }
+        if (result.uploadErrors) {
+          setUploadErrors(result.uploadErrors);
+        }
+        setShowResults(true);
+      } else {
+        // Reset form and close modal
+        setFile(null);
+        setDescription("");
+        setTags([]);
+        setTagInput("");
+        setCustomFieldValues({});
+        setErrors([]);
+        onClose();
+      }
     } catch (error) {
       setErrors(['Failed to upload document. Please try again.']);
     } finally {
@@ -253,8 +279,125 @@ export function AddDocumentModal({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const handleClose = () => {
+    if (showResults) {
+      // Reset everything and close
+      setFile(null);
+      setDescription("");
+      setTags([]);
+      setTagInput("");
+      setCustomFieldValues({});
+      setErrors([]);
+      setUploadResults([]);
+      setUploadErrors([]);
+      setShowResults(false);
+    }
+    onClose();
+  };
+
+  // If showing results, display upload summary
+  if (showResults) {
+    return (
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Upload Complete
+            </DialogTitle>
+            <DialogDescription>
+              Document has been uploaded to SharePoint locations
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Upload Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Upload Summary</CardTitle>
+                <CardDescription>
+                  {file?.name} has been uploaded to {uploadResults.length} SharePoint location{uploadResults.length !== 1 ? 's' : ''}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Successful Uploads */}
+                {uploadResults.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2 text-green-700 dark:text-green-300">
+                      ✓ Successful Uploads ({uploadResults.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {uploadResults.map((result, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm">{result.configName}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {result.documentLibrary}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              <div className="truncate">{result.siteUrl}</div>
+                              {result.sharePointPath && (
+                                <div className="truncate">
+                                  <a 
+                                    href={result.sharePointPath} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                  >
+                                    View in SharePoint
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Failed Uploads */}
+                {uploadErrors.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2 text-red-700 dark:text-red-300">
+                      ✗ Failed Uploads ({uploadErrors.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {uploadErrors.map((error, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-red-700 dark:text-red-300">
+                              {error.configName}
+                            </div>
+                            <div className="text-xs text-red-600 dark:text-red-400">
+                              {error.error}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <DialogFooter>
+              <Button onClick={handleClose}>
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Document</DialogTitle>
@@ -360,7 +503,7 @@ export function AddDocumentModal({
                     {tag}
                     <X 
                       className="h-3 w-3 cursor-pointer" 
-                      onClick={() => handleRemoveTag(tag)}
+                      onClick={() => handleRemoveTag(tag)} 
                     />
                   </Badge>
                 ))}
@@ -398,7 +541,7 @@ export function AddDocumentModal({
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting || loading}
             >
               Cancel

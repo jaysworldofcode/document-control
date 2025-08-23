@@ -338,6 +338,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const projectId = formData.get('projectId') as string;
+    const sharePointConfigId = formData.get('sharePointConfigId') as string; // New field for multiple configs
     const description = formData.get('description') as string;
     const tags = formData.get('tags') as string;
     const customFieldValues = formData.get('customFieldValues') as string;
@@ -363,10 +364,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User organization not found' }, { status: 404 });
     }
 
-    // Verify project exists and user has access - get project with SharePoint config
+    // Verify project exists and user has access
     const { data: project } = await supabase
       .from('projects')
-      .select('id, organization_id, name, sharepoint_site_url, sharepoint_document_library, sharepoint_folder_path')
+      .select('id, organization_id, name')
       .eq('id', projectId)
       .eq('organization_id', userData.organization_id)
       .single();
@@ -375,108 +376,118 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 
-    // Validate project has SharePoint configuration
-    if (!project.sharepoint_site_url) {
-      return NextResponse.json({ error: 'Project SharePoint configuration is incomplete. Please configure SharePoint site URL in project settings.' }, { status: 400 });
-    }
-
-    // Get organization-level SharePoint configuration (for authentication)
-    const { data: orgSharePointConfig } = await supabase
-      .from('sharepoint_configs')
+    // Get project SharePoint configurations
+    const { data: sharePointConfigs } = await supabase
+      .from('project_sharepoint_configs')
       .select('*')
-      .eq('organization_id', userData.organization_id)
-      .eq('is_enabled', true)
-      .single();
+      .eq('project_id', projectId)
+      .eq('is_enabled', true);
 
-    if (!orgSharePointConfig) {
-      return NextResponse.json({ error: 'Organization SharePoint integration not configured' }, { status: 400 });
+    if (!sharePointConfigs || sharePointConfigs.length === 0) {
+      return NextResponse.json({ error: 'No enabled SharePoint configurations found for this project. Please configure SharePoint integration in project settings.' }, { status: 400 });
     }
 
-    // Combine organization-level auth config with project-specific site config
-    const sharePointConfig = {
-      tenantId: orgSharePointConfig.tenant_id,
-      clientId: orgSharePointConfig.client_id,
-      clientSecret: orgSharePointConfig.client_secret,
-      siteUrl: project.sharepoint_site_url,
-      documentLibrary: project.sharepoint_document_library || 'Documents'
-    };
+    console.log(`Found ${sharePointConfigs.length} SharePoint configurations for project`);
 
-    let sharePointPath = '';
-    let sharePointId = '';
-    let downloadUrl = '';
+    // Upload to ALL SharePoint configurations
+    const uploadResults = [];
+    const uploadErrors = [];
 
-    try {
-      // Get SharePoint access token
-      console.log('Getting SharePoint access token...');
-      const accessToken = await getSharePointAccessToken({
-        tenantId: sharePointConfig.tenantId,
-        clientId: sharePointConfig.clientId,
-        clientSecret: sharePointConfig.clientSecret,
-        siteUrl: sharePointConfig.siteUrl,
-        documentLibrary: sharePointConfig.documentLibrary
-      });
-      console.log('Access Token obtained successfully (length:', accessToken.length, ')');
+    for (const config of sharePointConfigs) {
+      try {
+        console.log(`Uploading to SharePoint config: ${config.name} (${config.site_url})`);
 
-      // Generate unique filename to avoid conflicts
-      const timestamp = Date.now();
-      const fileName = `${timestamp}_${file.name}`;
-      console.log('Generated filename:', fileName);
+        // Get SharePoint access token for this config
+        const accessToken = await getSharePointAccessToken({
+          tenantId: config.tenant_id,
+          clientId: config.client_id,
+          clientSecret: config.client_secret,
+          siteUrl: config.site_url,
+          documentLibrary: config.document_library || 'Documents'
+        });
 
-      // Upload to SharePoint
-      const sharePointResult = await uploadToSharePoint(
-        file,
-        {
-          tenantId: sharePointConfig.tenantId,
-          clientId: sharePointConfig.clientId,
-          clientSecret: sharePointConfig.clientSecret,
-          siteUrl: sharePointConfig.siteUrl,
-          documentLibrary: sharePointConfig.documentLibrary
-        },
-        accessToken,
-        fileName
-      );
+        // Generate unique filename to avoid conflicts
+        const timestamp = Date.now();
+        let fileName = `${timestamp}_${file.name}`;
+        
+        // Add folder path if specified
+        if (config.folder_path) {
+          const folderPath = config.folder_path.startsWith('/') 
+            ? config.folder_path.substring(1) 
+            : config.folder_path;
+          fileName = `${folderPath}/${fileName}`;
+        }
 
-      sharePointPath = sharePointResult.sharePointPath;
-      sharePointId = sharePointResult.sharePointId;
-      downloadUrl = sharePointResult.downloadUrl;
-
-      console.log('SharePoint upload successful:', {
-        sharePointPath,
-        sharePointId
-      });
-
-      // Log to Excel if enabled
-      if (sharePointConfig.is_excel_logging_enabled) {
-        await logToExcel(
+        // Upload to SharePoint
+        const sharePointResult = await uploadToSharePoint(
+          file,
           {
-            tenantId: sharePointConfig.tenant_id,
-            clientId: sharePointConfig.client_id,
-            clientSecret: sharePointConfig.client_secret,
-            siteUrl: sharePointConfig.site_url,
-            isExcelLoggingEnabled: sharePointConfig.is_excel_logging_enabled,
-            excelSheetPath: sharePointConfig.excel_sheet_path
+            tenantId: config.tenant_id,
+            clientId: config.client_id,
+            clientSecret: config.client_secret,
+            siteUrl: config.site_url,
+            documentLibrary: config.document_library || 'Documents'
           },
           accessToken,
-          {
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            fileName: file.name,
-            fileType: file.name.split('.').pop()?.toLowerCase() || 'unknown',
-            fileSize: file.size,
-            uploadedBy: `${userData.first_name} ${userData.last_name}`,
-            projectName: project.name,
-            sharePointPath
-          }
+          fileName
         );
+
+        uploadResults.push({
+          configId: config.id,
+          configName: config.name,
+          sharePointPath: sharePointResult.sharePointPath,
+          sharePointId: sharePointResult.sharePointId,
+          downloadUrl: sharePointResult.downloadUrl,
+          siteUrl: config.site_url,
+          documentLibrary: config.document_library
+        });
+
+        console.log(`Upload successful to ${config.name}: ${sharePointResult.sharePointPath}`);
+
+        // Log to Excel if enabled for this config
+        if (config.is_excel_logging_enabled && config.excel_sheet_path) {
+          await logToExcel(
+            {
+              tenantId: config.tenant_id,
+              clientId: config.client_id,
+              clientSecret: config.client_secret,
+              siteUrl: config.site_url,
+              isExcelLoggingEnabled: config.is_excel_logging_enabled,
+              excelSheetPath: config.excel_sheet_path
+            },
+            accessToken,
+            {
+              title: file.name.replace(/\.[^/.]+$/, ""),
+              fileName: file.name,
+              fileType: file.name.split('.').pop()?.toLowerCase() || 'unknown',
+              fileSize: file.size,
+              uploadedBy: `${userData.first_name} ${userData.last_name}`,
+              projectName: project.name,
+              sharePointPath: sharePointResult.sharePointPath,
+              configName: config.name
+            }
+          );
+        }
+      } catch (error) {
+        console.error(`Failed to upload to ${config.name}:`, error);
+        uploadErrors.push({
+          configName: config.name,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
-    } catch (sharePointError) {
-      console.error('SharePoint operation failed:', sharePointError);
+    }
+
+    if (uploadResults.length === 0) {
       return NextResponse.json({ 
-        error: 'Failed to upload to SharePoint', 
-        details: sharePointError instanceof Error ? sharePointError.message : 'Unknown error'
+        error: 'Failed to upload to any SharePoint configuration', 
+        details: uploadErrors
       }, { status: 500 });
     }
 
-    // Create the document record in database
+    // Use the first successful upload as the primary record
+    const primaryUpload = uploadResults[0];
+
+    // Create the document record in database with primary SharePoint info
     const { data: document, error } = await supabase
       .from('documents')
       .insert({
@@ -485,17 +496,21 @@ export async function POST(request: NextRequest) {
         file_name: file.name,
         file_type: file.name.split('.').pop()?.toLowerCase() || 'unknown',
         file_size: file.size,
-        sharepoint_path: sharePointPath,
-        sharepoint_id: sharePointId,
-        download_url: downloadUrl,
+        sharepoint_path: primaryUpload.sharePointPath,
+        sharepoint_id: primaryUpload.sharePointId,
+        project_sharepoint_config_id: primaryUpload.configId, // Store primary config used
+        download_url: primaryUpload.downloadUrl,
         description: description || '',
         tags: tags ? JSON.parse(tags) : [],
         custom_field_values: customFieldValues ? JSON.parse(customFieldValues) : {},
-        uploaded_by: user.userId
+        uploaded_by: user.userId,
+        // Store all upload locations in metadata
+        sharepoint_uploads: uploadResults
       })
       .select(`
         *,
-        uploaded_by_user:users!documents_uploaded_by_fkey(id, first_name, last_name, email)
+        uploaded_by_user:users!documents_uploaded_by_fkey(id, first_name, last_name, email),
+        sharepoint_config:project_sharepoint_configs!documents_project_sharepoint_config_id_fkey(id, name, site_url, document_library, folder_path)
       `)
       .single();
 
@@ -528,7 +543,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       document: transformedDocument,
-      message: 'Document uploaded successfully to SharePoint'
+      uploadResults: uploadResults,
+      uploadErrors: uploadErrors,
+      summary: {
+        totalConfigurations: sharePointConfigs.length,
+        successfulUploads: uploadResults.length,
+        failedUploads: uploadErrors.length
+      },
+      message: uploadErrors.length > 0 
+        ? `Document uploaded to ${uploadResults.length}/${sharePointConfigs.length} SharePoint configurations. ${uploadErrors.length} uploads failed.`
+        : `Document uploaded successfully to all ${uploadResults.length} SharePoint configurations!`
     }, { status: 201 });
 
   } catch (error) {

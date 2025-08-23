@@ -52,8 +52,9 @@ export interface Project {
   client: string;
   clientId?: string;
   
-  // SharePoint Integration
-  sharePointConfig: SharePointConfig;
+  // SharePoint Integration - Support multiple configurations
+  sharePointConfig: SharePointConfig; // Keep for backward compatibility
+  sharePointConfigs: SharePointConfigFormData[]; // New: Multiple configurations
   
   // Dynamic Custom Fields Configuration
   customFields: CustomField[];
@@ -94,18 +95,29 @@ export interface ProjectFormData {
   client: string;
   clientId?: string;
   
-  // SharePoint Configuration
-  sharePointSiteUrl: string;
-  sharePointDocumentLibrary: string;
-  sharePointExcelPath?: string;
-  sharePointExcelId?: string;
-  enableExcelLogging: boolean;
+  // Multiple SharePoint Configurations
+  sharePointConfigs: SharePointConfigFormData[];
   
   // Custom Fields
   customFields: CustomField[];
   
   tags?: string[];
   category?: string;
+}
+
+// SharePoint Configuration Form Data
+export interface SharePointConfigFormData {
+  id: string;
+  name: string;
+  siteUrl: string;
+  documentLibrary: string;
+  folderPath?: string;
+  excelPath?: string;
+  enableExcelLogging: boolean;
+  // Additional properties for display and functionality
+  isDefault?: boolean;
+  isExcelLoggingEnabled?: boolean;
+  excelSheetPath?: string;
 }
 
 // Custom Field Form Data
@@ -151,7 +163,6 @@ export interface CreateProjectRequest {
   endDate: string;
   budget: string;
   clientId?: string;
-  sharePointConfig: SharePointConfig;
   customFields: CustomField[];
   tags?: string[];
   category?: string;
