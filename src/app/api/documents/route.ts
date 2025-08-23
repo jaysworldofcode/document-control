@@ -8,6 +8,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Helper function to transform custom field values using field definitions
+async function transformCustomFieldValues(projectId: string, customFieldValues: Record<string, any>) {
+  // Fetch project's custom field definitions
+  const { data: project } = await supabase
+    .from('projects')
+    .select('custom_fields')
+    .eq('id', projectId)
+    .single();
+
+  if (!project?.custom_fields) {
+    return customFieldValues;
+  }
+
+  const fieldDefinitions = project.custom_fields;
+  const transformedValues: Record<string, any> = {};
+
+  // Create a map of field IDs to their names
+  const fieldMap = fieldDefinitions.reduce((acc: Record<string, string>, field: any) => {
+    acc[field.id] = field.name;
+    return acc;
+  }, {});
+
+  // Transform the values using the field names instead of IDs
+  Object.entries(customFieldValues).forEach(([fieldId, value]) => {
+    const fieldName = fieldMap[fieldId];
+    if (fieldName) {
+      transformedValues[fieldName] = value;
+    } else {
+      transformedValues[fieldId] = value; // Fallback to ID if name not found
+    }
+  });
+
+  return transformedValues;
+}
+
 // Helper function to verify JWT token and get user info
 async function verifyToken(request: NextRequest) {
   const cookieStore = await cookies();
@@ -79,25 +114,32 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform documents to match frontend interface
-    const transformedDocuments = documents?.map(doc => ({
-      id: doc.id,
-      name: doc.title,
-      fileName: doc.file_name,
-      fileType: doc.file_type || 'unknown',
-      fileSize: doc.file_size || 0,
-      version: '1.0', // Default version since we don't have versioning yet
-      status: doc.status || 'draft',
-      uploadedBy: doc.uploaded_by_user ? `${doc.uploaded_by_user.first_name} ${doc.uploaded_by_user.last_name}` : 'Unknown',
-      uploadedAt: doc.uploaded_at,
-      lastModified: doc.updated_at,
-      lastModifiedBy: doc.uploaded_by_user ? `${doc.uploaded_by_user.first_name} ${doc.uploaded_by_user.last_name}` : 'Unknown',
-      sharePointPath: doc.sharepoint_path || '',
-      description: '',
-      tags: [],
-      projectId: doc.project_id,
-      customFieldValues: doc.custom_field_values || {},
-      revisionHistory: []
-    })) || [];
+    const transformedDocuments = await Promise.all((documents || []).map(async doc => {
+      const transformedCustomFields = await transformCustomFieldValues(
+        projectId,
+        doc.custom_field_values || {}
+      );
+
+      return {
+        id: doc.id,
+        name: doc.title,
+        fileName: doc.file_name,
+        fileType: doc.file_type || 'unknown',
+        fileSize: doc.file_size || 0,
+        version: '1.0', // Default version since we don't have versioning yet
+        status: doc.status || 'draft',
+        uploadedBy: doc.uploaded_by_user ? `${doc.uploaded_by_user.first_name} ${doc.uploaded_by_user.last_name}` : 'Unknown',
+        uploadedAt: doc.uploaded_at,
+        lastModified: doc.updated_at,
+        lastModifiedBy: doc.uploaded_by_user ? `${doc.uploaded_by_user.first_name} ${doc.uploaded_by_user.last_name}` : 'Unknown',
+        sharePointPath: doc.sharepoint_path || '',
+        description: '',
+        tags: [],
+        projectId: doc.project_id,
+        customFieldValues: transformedCustomFields,
+        revisionHistory: []
+      };
+    }));
 
     return NextResponse.json(transformedDocuments);
   } catch (error) {
@@ -177,6 +219,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Transform document to match frontend interface
+    const transformedCustomFields = await transformCustomFieldValues(
+      projectId,
+      document.custom_field_values || {}
+    );
+
     const transformedDocument = {
       id: document.id,
       name: document.title,
@@ -193,7 +240,7 @@ export async function POST(request: NextRequest) {
       description: '',
       tags: [],
       projectId: document.project_id,
-      customFieldValues: document.custom_field_values || {},
+      customFieldValues: transformedCustomFields,
       revisionHistory: []
     };
 
