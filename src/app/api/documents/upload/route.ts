@@ -342,10 +342,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User organization not found' }, { status: 404 });
     }
 
-    // Verify project exists and user has access
+    // Verify project exists and user has access - get project with SharePoint config
     const { data: project } = await supabase
       .from('projects')
-      .select('id, organization_id, name')
+      .select('id, organization_id, name, sharepoint_site_url, sharepoint_document_library, sharepoint_folder_path')
       .eq('id', projectId)
       .eq('organization_id', userData.organization_id)
       .single();
@@ -354,17 +354,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 
-    // Get SharePoint configuration for the organization
-    const { data: sharePointConfig } = await supabase
+    // Validate project has SharePoint configuration
+    if (!project.sharepoint_site_url) {
+      return NextResponse.json({ error: 'Project SharePoint configuration is incomplete. Please configure SharePoint site URL in project settings.' }, { status: 400 });
+    }
+
+    // Get organization-level SharePoint configuration (for authentication)
+    const { data: orgSharePointConfig } = await supabase
       .from('sharepoint_configs')
       .select('*')
       .eq('organization_id', userData.organization_id)
       .eq('is_enabled', true)
       .single();
 
-    if (!sharePointConfig) {
-      return NextResponse.json({ error: 'SharePoint integration not configured' }, { status: 400 });
+    if (!orgSharePointConfig) {
+      return NextResponse.json({ error: 'Organization SharePoint integration not configured' }, { status: 400 });
     }
+
+    // Combine organization-level auth config with project-specific site config
+    const sharePointConfig = {
+      tenantId: orgSharePointConfig.tenant_id,
+      clientId: orgSharePointConfig.client_id,
+      clientSecret: orgSharePointConfig.client_secret,
+      siteUrl: project.sharepoint_site_url,
+      documentLibrary: project.sharepoint_document_library || 'Documents'
+    };
 
     let sharePointPath = '';
     let sharePointId = '';
@@ -374,11 +388,11 @@ export async function POST(request: NextRequest) {
       // Get SharePoint access token
       console.log('Getting SharePoint access token...');
       const accessToken = await getSharePointAccessToken({
-        tenantId: sharePointConfig.tenant_id,
-        clientId: sharePointConfig.client_id,
-        clientSecret: sharePointConfig.client_secret,
-        siteUrl: sharePointConfig.site_url,
-        documentLibrary: sharePointConfig.document_library || 'Documents'
+        tenantId: sharePointConfig.tenantId,
+        clientId: sharePointConfig.clientId,
+        clientSecret: sharePointConfig.clientSecret,
+        siteUrl: sharePointConfig.siteUrl,
+        documentLibrary: sharePointConfig.documentLibrary
       });
       console.log('Access Token obtained successfully (length:', accessToken.length, ')');
 
@@ -391,11 +405,11 @@ export async function POST(request: NextRequest) {
       const sharePointResult = await uploadToSharePoint(
         file,
         {
-          tenantId: sharePointConfig.tenant_id,
-          clientId: sharePointConfig.client_id,
-          clientSecret: sharePointConfig.client_secret,
-          siteUrl: sharePointConfig.site_url,
-          documentLibrary: sharePointConfig.document_library || 'Documents'
+          tenantId: sharePointConfig.tenantId,
+          clientId: sharePointConfig.clientId,
+          clientSecret: sharePointConfig.clientSecret,
+          siteUrl: sharePointConfig.siteUrl,
+          documentLibrary: sharePointConfig.documentLibrary
         },
         accessToken,
         fileName

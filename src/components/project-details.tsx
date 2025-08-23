@@ -504,9 +504,15 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Folder Path</label>
+                  <label className="text-sm font-medium text-muted-foreground">Site URL</label>
                   <p className="mt-1 font-mono text-sm bg-muted p-2 rounded">
-                    {project.sharePointConfig.folderPath}
+                    {project.sharePointConfig.siteUrl || 'Not configured'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Document Library</label>
+                  <p className="mt-1 font-mono text-sm bg-muted p-2 rounded">
+                    {project.sharePointConfig.documentLibrary || 'Documents'}
                   </p>
                 </div>
                 <div>

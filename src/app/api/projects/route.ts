@@ -152,8 +152,8 @@ export async function POST(request: NextRequest) {
       clientId,
       managerIds = [],
       teamIds = [],
-      sharePointFolderPath,
-      sharePointFolderId,
+      sharePointSiteUrl,
+      sharePointDocumentLibrary = 'Documents',
       sharePointExcelPath,
       sharePointExcelId,
       enableExcelLogging = false,
@@ -192,8 +192,8 @@ export async function POST(request: NextRequest) {
         client,
         client_id: clientId,
         organization_id: userData.organization_id,
-        sharepoint_folder_path: sharePointFolderPath,
-        sharepoint_folder_id: sharePointFolderId,
+        sharepoint_site_url: sharePointSiteUrl,
+        sharepoint_document_library: sharePointDocumentLibrary,
         sharepoint_excel_path: sharePointExcelPath,
         sharepoint_excel_id: sharePointExcelId,
         excel_logging_enabled: enableExcelLogging,
@@ -276,8 +276,6 @@ export async function PUT(request: NextRequest) {
       clientId,
       managerIds,
       teamIds,
-      sharePointFolderPath,
-      sharePointFolderId,
       sharePointExcelPath,
       sharePointExcelId,
       enableExcelLogging,
@@ -323,8 +321,6 @@ export async function PUT(request: NextRequest) {
     if (budget !== undefined) updateData.budget = budget;
     if (client !== undefined) updateData.client = client;
     if (clientId !== undefined) updateData.client_id = clientId;
-    if (sharePointFolderPath !== undefined) updateData.sharepoint_folder_path = sharePointFolderPath;
-    if (sharePointFolderId !== undefined) updateData.sharepoint_folder_id = sharePointFolderId;
     if (sharePointExcelPath !== undefined) updateData.sharepoint_excel_path = sharePointExcelPath;
     if (sharePointExcelId !== undefined) updateData.sharepoint_excel_id = sharePointExcelId;
     if (enableExcelLogging !== undefined) updateData.excel_logging_enabled = enableExcelLogging;

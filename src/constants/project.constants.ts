@@ -255,34 +255,34 @@ export const FINANCE_CUSTOM_FIELDS: CustomField[] = [
 // Sample SharePoint Configurations
 export const SHAREPOINT_CONFIGS: { [key: string]: SharePointConfig } = {
   engineering: {
-    folderPath: '/sites/CompanyDocs/Engineering/Projects/',
-    folderId: 'SP_ENG_001',
+    siteUrl: 'https://company.sharepoint.com/sites/engineering',
+    documentLibrary: 'Documents',
     excelSheetPath: '/sites/CompanyDocs/Engineering/Logs/DocumentLog.xlsx',
     excelSheetId: 'SP_EXCEL_ENG_001',
     isExcelLoggingEnabled: true
   },
   legal: {
-    folderPath: '/sites/CompanyDocs/Legal/Contracts/',
-    folderId: 'SP_LEGAL_001',
+    siteUrl: 'https://company.sharepoint.com/sites/legal',
+    documentLibrary: 'Documents',
     excelSheetPath: '/sites/CompanyDocs/Legal/Logs/ContractLog.xlsx',
     excelSheetId: 'SP_EXCEL_LEGAL_001',
     isExcelLoggingEnabled: true
   },
   finance: {
-    folderPath: '/sites/CompanyDocs/Finance/Invoices/',
-    folderId: 'SP_FIN_001',
+    siteUrl: 'https://company.sharepoint.com/sites/finance',
+    documentLibrary: 'Documents',
     excelSheetPath: '/sites/CompanyDocs/Finance/Logs/InvoiceLog.xlsx',
     excelSheetId: 'SP_EXCEL_FIN_001',
     isExcelLoggingEnabled: true
   },
   hr: {
-    folderPath: '/sites/CompanyDocs/HR/Personnel/',
-    folderId: 'SP_HR_001',
+    siteUrl: 'https://company.sharepoint.com/sites/hr',
+    documentLibrary: 'Documents',
     isExcelLoggingEnabled: false
   },
   marketing: {
-    folderPath: '/sites/CompanyDocs/Marketing/Campaigns/',
-    folderId: 'SP_MKT_001',
+    siteUrl: 'https://company.sharepoint.com/sites/marketing',
+    documentLibrary: 'Documents',
     excelSheetPath: '/sites/CompanyDocs/Marketing/Logs/CampaignTracker.xlsx',
     excelSheetId: 'SP_EXCEL_MKT_001',
     isExcelLoggingEnabled: true
@@ -570,40 +570,6 @@ export const MOCK_PROJECTS: Project[] = [
     tags: ['marketing', 'assets', 'campaigns'],
     category: 'Marketing',
     isArchived: false
-  }
-];
-
-// SharePoint Folder Templates
-export const SHAREPOINT_FOLDER_TEMPLATES = [
-  {
-    category: 'Engineering',
-    path: '/sites/CompanyDocs/Engineering/Projects/',
-    description: 'Technical documents, specifications, and engineering files'
-  },
-  {
-    category: 'Legal',
-    path: '/sites/CompanyDocs/Legal/Contracts/',
-    description: 'Legal documents, contracts, and compliance files'
-  },
-  {
-    category: 'Finance',
-    path: '/sites/CompanyDocs/Finance/Invoices/',
-    description: 'Financial documents, invoices, and accounting files'
-  },
-  {
-    category: 'HR',
-    path: '/sites/CompanyDocs/HR/Personnel/',
-    description: 'Human resources documents and personnel files'
-  },
-  {
-    category: 'Marketing',
-    path: '/sites/CompanyDocs/Marketing/Campaigns/',
-    description: 'Marketing materials, campaigns, and brand assets'
-  },
-  {
-    category: 'Operations',
-    path: '/sites/CompanyDocs/Operations/Procedures/',
-    description: 'Operational procedures and process documentation'
   }
 ];
 

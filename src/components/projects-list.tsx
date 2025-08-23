@@ -130,6 +130,8 @@ export function ProjectsList() {
         ...data,
         managerIds: data.managers.map(m => m.id),
         teamIds: [], // Add team support later if needed
+        sharePointSiteUrl: data.sharePointSiteUrl,
+        sharePointDocumentLibrary: data.sharePointDocumentLibrary,
         sharePointFolderPath: data.sharePointFolderPath,
         sharePointFolderId: data.sharePointFolderId,
         sharePointExcelPath: data.sharePointExcelPath,

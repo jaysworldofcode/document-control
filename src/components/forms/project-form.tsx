@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { UserSelector } from "@/components/ui/user-selector";
 import { Project, ProjectFormData, CustomField, CustomFieldFormData } from '@/types/project.types';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, CUSTOM_FIELD_TYPES } from '@/types/project.types';
-import { SHAREPOINT_FOLDER_TEMPLATES, EXCEL_SHEET_TEMPLATES } from '@/constants/project.constants';
+import { EXCEL_SHEET_TEMPLATES } from '@/constants/project.constants';
 import { 
   Loader2, 
   AlertCircle, 
@@ -41,10 +41,10 @@ import {
   Trash2, 
   GripVertical, 
   Settings,
-  FolderOpen,
   FileSpreadsheet,
   Info,
-  UserPlus
+  UserPlus,
+  Globe
 } from 'lucide-react';
 import {
   DndContext,
@@ -165,7 +165,8 @@ export function ProjectForm({
     endDate: '',
     budget: '',
     client: '',
-    sharePointFolderPath: '',
+    sharePointSiteUrl: '',
+    sharePointDocumentLibrary: '',
     sharePointExcelPath: '',
     enableExcelLogging: false,
     customFields: []
@@ -209,7 +210,8 @@ export function ProjectForm({
         endDate: project.endDate,
         budget: project.budget,
         client: project.client,
-        sharePointFolderPath: project.sharePointConfig.folderPath,
+        sharePointSiteUrl: project.sharePointConfig.siteUrl || '',
+        sharePointDocumentLibrary: project.sharePointConfig.documentLibrary || 'Documents',
         sharePointExcelPath: project.sharePointConfig.excelSheetPath || '',
         enableExcelLogging: project.sharePointConfig.isExcelLoggingEnabled,
         customFields: project.customFields
@@ -226,7 +228,8 @@ export function ProjectForm({
         endDate: '',
         budget: '',
         client: '',
-        sharePointFolderPath: '',
+        sharePointSiteUrl: '',
+        sharePointDocumentLibrary: 'Documents',
         sharePointExcelPath: '',
         enableExcelLogging: false,
         customFields: []
@@ -241,12 +244,8 @@ export function ProjectForm({
   };
 
   const handleSharePointTemplateSelect = (template: string) => {
-    const folderTemplate = SHAREPOINT_FOLDER_TEMPLATES.find(t => t.category === template);
     const excelTemplate = EXCEL_SHEET_TEMPLATES.find(t => t.category === template);
     
-    if (folderTemplate) {
-      handleInputChange('sharePointFolderPath', folderTemplate.path);
-    }
     if (excelTemplate) {
       handleInputChange('sharePointExcelPath', excelTemplate.path);
       handleInputChange('enableExcelLogging', true);
@@ -390,7 +389,8 @@ export function ProjectForm({
     if (!formData.description) validationErrors.push('Project description is required');
     if (!formData.managers || formData.managers.length === 0) validationErrors.push('At least one project manager is required');
     if (!formData.startDate) validationErrors.push('Start date is required');
-    if (!formData.sharePointFolderPath) validationErrors.push('SharePoint folder path is required');
+    if (!formData.sharePointSiteUrl) validationErrors.push('SharePoint site URL is required');
+    if (!formData.sharePointDocumentLibrary) validationErrors.push('SharePoint document library is required');
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
@@ -596,41 +596,37 @@ export function ProjectForm({
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="h-5 w-5" />
-                    SharePoint Folder Configuration
+                    <Globe className="h-5 w-5" />
+                    SharePoint Site Configuration
                   </CardTitle>
                   <CardDescription>
-                    Configure where project documents will be stored in SharePoint
+                    Configure the SharePoint site and document library for this project
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Quick Templates</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {SHAREPOINT_FOLDER_TEMPLATES.map((template) => (
-                        <Button
-                          key={template.category}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSharePointTemplateSelect(template.category)}
-                        >
-                          {template.category}
-                        </Button>
-                      ))}
-                    </div>
+                    <Label htmlFor="sharePointSiteUrl">SharePoint Site URL *</Label>
+                    <Input
+                      id="sharePointSiteUrl"
+                      value={formData.sharePointSiteUrl}
+                      onChange={(e) => handleInputChange('sharePointSiteUrl', e.target.value)}
+                      placeholder="https://company.sharepoint.com/sites/projectname"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The SharePoint site URL where project documents will be stored
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sharePointFolderPath">SharePoint Folder Path *</Label>
+                    <Label htmlFor="sharePointDocumentLibrary">Document Library Name</Label>
                     <Input
-                      id="sharePointFolderPath"
-                      value={formData.sharePointFolderPath}
-                      onChange={(e) => handleInputChange('sharePointFolderPath', e.target.value)}
-                      placeholder="/sites/CompanyDocs/Projects/ProjectName/"
+                      id="sharePointDocumentLibrary"
+                      value={formData.sharePointDocumentLibrary}
+                      onChange={(e) => handleInputChange('sharePointDocumentLibrary', e.target.value)}
+                      placeholder="Documents"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Full path to the SharePoint folder where documents will be stored
+                      The name of the document library within the SharePoint site (default: Documents)
                     </p>
                   </div>
                 </CardContent>

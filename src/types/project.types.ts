@@ -6,8 +6,8 @@ export type CustomFieldType = 'text' | 'textarea' | 'number' | 'checkbox' | 'boo
 
 // SharePoint Integration Types
 export interface SharePointConfig {
-  folderPath: string;
-  folderId?: string;
+  siteUrl: string; // Project-specific SharePoint site URL
+  documentLibrary: string; // Project-specific document library name
   excelSheetPath?: string; // Optional Excel sheet for logging
   excelSheetId?: string;
   isExcelLoggingEnabled: boolean;
@@ -95,8 +95,8 @@ export interface ProjectFormData {
   clientId?: string;
   
   // SharePoint Configuration
-  sharePointFolderPath: string;
-  sharePointFolderId?: string;
+  sharePointSiteUrl: string;
+  sharePointDocumentLibrary: string;
   sharePointExcelPath?: string;
   sharePointExcelId?: string;
   enableExcelLogging: boolean;

@@ -76,7 +76,8 @@ export function ProjectSettings({
     budget: project.budget || '',
     startDate: formatDateForInput(project.startDate),
     endDate: formatDateForInput(project.endDate),
-    sharePointFolderPath: project.sharePointConfig?.folderPath || '',
+    sharePointSiteUrl: project.sharePointConfig?.siteUrl || '',
+    sharePointDocumentLibrary: project.sharePointConfig?.documentLibrary || 'Documents',
     sharePointExcelPath: project.sharePointConfig?.excelSheetPath || '',
     enableExcelLogging: project.sharePointConfig?.isExcelLoggingEnabled || false,
   });
@@ -126,8 +127,12 @@ export function ProjectSettings({
       newErrors.push('Project description is required');
     }
 
-    if (!formData.sharePointFolderPath.trim()) {
-      newErrors.push('SharePoint folder path is required');
+    if (!formData.sharePointSiteUrl.trim()) {
+      newErrors.push('SharePoint site URL is required');
+    }
+
+    if (!formData.sharePointDocumentLibrary.trim()) {
+      newErrors.push('SharePoint document library is required');
     }
 
     if (formData.enableExcelLogging && !formData.sharePointExcelPath.trim()) {
@@ -161,7 +166,8 @@ export function ProjectSettings({
         endDate: formData.endDate,
         sharePointConfig: {
           ...project.sharePointConfig,
-          folderPath: formData.sharePointFolderPath,
+          siteUrl: formData.sharePointSiteUrl,
+          documentLibrary: formData.sharePointDocumentLibrary,
           excelSheetPath: formData.sharePointExcelPath,
           isExcelLoggingEnabled: formData.enableExcelLogging,
         }
@@ -361,14 +367,31 @@ export function ProjectSettings({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="sharePointPath">SharePoint Folder Path *</Label>
+            <Label htmlFor="sharePointSiteUrl">SharePoint Site URL *</Label>
             <Input
-              id="sharePointPath"
-              value={formData.sharePointFolderPath}
-              onChange={(e) => handleInputChange('sharePointFolderPath', e.target.value)}
-              placeholder="/sites/company/projects/project-name"
+              id="sharePointSiteUrl"
+              value={formData.sharePointSiteUrl}
+              onChange={(e) => handleInputChange('sharePointSiteUrl', e.target.value)}
+              placeholder="https://company.sharepoint.com/sites/projectname"
               className="font-mono"
             />
+            <p className="text-xs text-muted-foreground">
+              The SharePoint site URL where project documents will be stored
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sharePointDocumentLibrary">Document Library Name</Label>
+            <Input
+              id="sharePointDocumentLibrary"
+              value={formData.sharePointDocumentLibrary}
+              onChange={(e) => handleInputChange('sharePointDocumentLibrary', e.target.value)}
+              placeholder="Documents"
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              The name of the document library within the SharePoint site
+            </p>
           </div>
 
           <div className="flex items-center space-x-3">
