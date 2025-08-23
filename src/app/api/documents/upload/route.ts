@@ -114,20 +114,41 @@ async function uploadToSharePoint(file: File, config: any, accessToken: string, 
     }
 
     const driveData = await driveResponse.json();
-    console.log('Available drives:', driveData.value?.map((d: any) => ({ name: d.name, id: d.id })));
+    console.log('Available drives:', driveData.value?.map((d: any) => ({ name: d.name, id: d.id, driveType: d.driveType })));
     
     // Find the correct document library
     const targetLibrary = config.documentLibrary || 'Documents';
-    let documentDrive = driveData.value?.find((drive: any) => 
-      drive.name === targetLibrary || 
-      drive.name === 'Documents' ||
-      drive.driveType === 'documentLibrary'
-    );
+    console.log('Target library to find:', targetLibrary);
+    
+    let documentDrive = driveData.value?.find((drive: any) => {
+      console.log(`Checking drive: ${drive.name} (type: ${drive.driveType}) against target: ${targetLibrary}`);
+      return drive.name === targetLibrary;
+    });
 
+    // If exact name match fails, try case-insensitive match
+    if (!documentDrive) {
+      documentDrive = driveData.value?.find((drive: any) => 
+        drive.name.toLowerCase() === targetLibrary.toLowerCase()
+      );
+      if (documentDrive) {
+        console.log('Found library with case-insensitive match:', documentDrive.name);
+      }
+    }
+
+    // If still no match and target is not 'Documents', try finding 'Documents' as fallback
+    if (!documentDrive && targetLibrary !== 'Documents') {
+      documentDrive = driveData.value?.find((drive: any) => 
+        drive.name === 'Documents' || drive.name.toLowerCase() === 'documents'
+      );
+      if (documentDrive) {
+        console.log('Falling back to Documents library:', documentDrive.name);
+      }
+    }
+
+    // If still no exact match, use the first document library
     if (!documentDrive && driveData.value?.length > 0) {
-      // If no exact match, use the first document library
-      documentDrive = driveData.value[0];
-      console.log('Using first available drive:', documentDrive.name);
+      documentDrive = driveData.value.find((drive: any) => drive.driveType === 'documentLibrary') || driveData.value[0];
+      console.log('Using first available document library drive:', documentDrive.name);
     }
 
     if (!documentDrive) {
