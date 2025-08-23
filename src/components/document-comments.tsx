@@ -169,6 +169,16 @@ export function DocumentComments({
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
+  const handleDownloadAttachment = (url: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const CommentItem = ({ comment, isReply = false }: { comment: DocumentComment & { replies?: DocumentComment[] }; isReply?: boolean }) => (
     <div className={`flex gap-3 ${isReply ? 'ml-12 mt-3' : ''}`}>
       <Avatar className="h-8 w-8">
@@ -244,7 +254,12 @@ export function DocumentComments({
                       <p className="text-sm font-medium">{attachment.fileName}</p>
                       <p className="text-xs text-muted-foreground">{formatFileSize(attachment.fileSize)}</p>
                     </div>
-                    <Button size="icon" variant="ghost" className="h-6 w-6">
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-6 w-6"
+                      onClick={() => handleDownloadAttachment(attachment.url, attachment.fileName)}
+                    >
                       <Download className="h-3 w-3" />
                     </Button>
                   </div>

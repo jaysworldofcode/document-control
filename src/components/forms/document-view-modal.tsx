@@ -1,486 +1,514 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  FileText, 
+  Download, 
+  Edit, 
+  Calendar, 
+  User, 
+  Tag, 
+  FileIcon,
+  ExternalLink,
+  MessageCircle,
+  Loader2
+} from "lucide-react";
 import { Document } from "@/types/document.types";
 import { DocumentComment, NewCommentData, CommentReaction } from "@/types/comment.types";
 import { DocumentComments } from "@/components/document-comments";
-import { DocumentRejectionDisplay } from "@/components/document-rejection-display";
-import { 
-  Calendar,
-  User,
-  FileText,
-  Download,
-  Eye,
-  Hash,
-  Clock,
-  Edit,
-  Tag,
-  Building,
-  Globe,
-  ExternalLink
-} from "lucide-react";
+import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 
 interface DocumentViewModalProps {
-  document: Document | null;
   isOpen: boolean;
   onClose: () => void;
+  document: Document | null;
   onEdit?: (document: Document) => void;
 }
 
-const statusConfig = {
-  draft: { label: "Draft", variant: "secondary" as const, color: "text-gray-600" },
-  pending: { label: "Pending", variant: "secondary" as const, color: "text-gray-600" },
-  pending_review: { label: "Pending Review", variant: "secondary" as const, color: "text-blue-600" },
-  under_review: { label: "Under Review", variant: "warning" as const, color: "text-yellow-600" },
-  approved: { label: "Approved", variant: "success" as const, color: "text-green-600" },
-  rejected: { label: "Rejected", variant: "destructive" as const, color: "text-red-600" },
-  archived: { label: "Archived", variant: "outline" as const, color: "text-gray-500" },
-  checked_out: { label: "Checked Out", variant: "info" as const, color: "text-blue-600" },
-  final: { label: "Final", variant: "default" as const, color: "text-gray-900" },
-};
-
 export function DocumentViewModal({ 
-  document, 
   isOpen, 
-  onClose,
+  onClose, 
+  document,
   onEdit 
 }: DocumentViewModalProps) {
   const [comments, setComments] = useState<DocumentComment[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
 
-  // Mock current user data - in real app this would come from auth context
-  const currentUser = {
-    id: "user_123",
-    name: "John Doe",
-    email: "john.doe@company.com"
-  };
+  // Load current user
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser({
+            id: userData.user.id,
+            name: userData.user.fullName || userData.user.email
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+      }
+    };
 
-  // Mock comments data - in real app this would be fetched from API
-  React.useEffect(() => {
+    if (isOpen) {
+      loadCurrentUser();
+    }
+  }, [isOpen]);
+
+  // Load comments when document changes
+  useEffect(() => {
+    const loadComments = async () => {
+      if (!document?.id) return;
+      
+      setLoadingComments(true);
+      try {
+        const response = await fetch(`/api/comments?documentId=${document.id}`);
+        if (response.ok) {
+          const commentsData = await response.json();
+          setComments(commentsData || []);
+        }
+      } catch (error) {
+        console.error('Failed to load comments:', error);
+      } finally {
+        setLoadingComments(false);
+      }
+    };
+
     if (isOpen && document) {
-      // Simulate loading comments
-      setIsLoadingComments(true);
-      setTimeout(() => {
-        const mockComments: DocumentComment[] = [
-          {
-            id: "comment_1",
-            documentId: document.id,
-            userId: "user_456",
-            userName: "Jane Smith",
-            userEmail: "jane.smith@company.com",
-            content: "This document looks good overall, but I think we need to add more details in section 3.2 about the security protocols.",
-            createdAt: "2024-08-15T10:30:00Z",
-            isEdited: false,
-            reactions: [
-              { id: "reaction_1", userId: "user_123", userName: "John Doe", type: "like", createdAt: "2024-08-15T11:00:00Z" },
-              { id: "reaction_2", userId: "user_789", userName: "Bob Johnson", type: "helpful", createdAt: "2024-08-15T11:15:00Z" }
-            ]
-          },
-          {
-            id: "comment_2",
-            documentId: document.id,
-            userId: "user_123",
-            userName: "John Doe",
-            userEmail: "john.doe@company.com",
-            content: "@Jane Smith - Good point about section 3.2. I'll update that section to include the security protocol details we discussed in the last meeting.",
-            createdAt: "2024-08-15T14:20:00Z",
-            isEdited: false,
-            replyTo: "comment_1",
-            reactions: [
-              { id: "reaction_3", userId: "user_456", userName: "Jane Smith", type: "like", createdAt: "2024-08-15T14:30:00Z" }
-            ]
-          },
-          {
-            id: "comment_3",
-            documentId: document.id,
-            userId: "user_789",
-            userName: "Bob Johnson",
-            userEmail: "bob.johnson@company.com",
-            content: "I've reviewed the technical specifications and they align with our current infrastructure. Great work on this!",
-            createdAt: "2024-08-16T09:15:00Z",
-            isEdited: false,
-            reactions: [
-              { id: "reaction_4", userId: "user_123", userName: "John Doe", type: "love", createdAt: "2024-08-16T09:30:00Z" }
-            ]
-          }
-        ];
-        setComments(mockComments);
-        setIsLoadingComments(false);
-      }, 500);
+      loadComments();
     }
   }, [isOpen, document]);
 
-  if (!document) return null;
+  const handleAddComment = async (data: NewCommentData) => {
+    if (!document?.id || !currentUser) return;
 
-  // Get status configuration with fallback
-  const getStatusConfig = (status: string) => {
-    return statusConfig[status as keyof typeof statusConfig] || {
-      label: status.charAt(0).toUpperCase() + status.slice(1),
-      variant: "secondary" as const,
-      color: "text-gray-600"
-    };
-  };
-
-  const currentStatusConfig = getStatusConfig(document.status);
-
-  // Comment handlers
-  const handleAddComment = async (data: NewCommentData): Promise<void> => {
-    // In real app, this would call an API
-    const newComment: DocumentComment = {
-      id: `comment_${Date.now()}`,
-      documentId: document.id,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userEmail: currentUser.email,
-      content: data.content,
-      createdAt: new Date().toISOString(),
-      isEdited: false,
-      replyTo: data.replyTo,
-      reactions: []
-    };
-    
-    setComments(prev => [...prev, newComment]);
-  };
-
-  const handleUpdateComment = async (commentId: string, content: string): Promise<void> => {
-    // In real app, this would call an API
-    setComments(prev => prev.map(comment => 
-      comment.id === commentId 
-        ? { ...comment, content, isEdited: true, updatedAt: new Date().toISOString() }
-        : comment
-    ));
-  };
-
-  const handleDeleteComment = async (commentId: string): Promise<void> => {
-    // In real app, this would call an API
-    setComments(prev => prev.filter(comment => comment.id !== commentId));
-  };
-
-  const handleReactToComment = async (commentId: string, reactionType: CommentReaction['type']): Promise<void> => {
-    // In real app, this would call an API
-    setComments(prev => prev.map(comment => {
-      if (comment.id !== commentId) return comment;
+    try {
+      const formData = new FormData();
+      formData.append('documentId', document.id);
+      formData.append('content', data.content);
       
-      const reactions = comment.reactions || [];
-      const existingReaction = reactions.find(r => r.userId === currentUser.id && r.type === reactionType);
-      
-      if (existingReaction) {
-        // Remove reaction if it already exists
-        return {
-          ...comment,
-          reactions: reactions.filter(r => r.id !== existingReaction.id)
-        };
-      } else {
-        // Add new reaction
-        const newReaction: CommentReaction = {
-          id: `reaction_${Date.now()}`,
-          userId: currentUser.id,
-          userName: currentUser.name,
-          type: reactionType,
-          createdAt: new Date().toISOString()
-        };
-        return {
-          ...comment,
-          reactions: [...reactions, newReaction]
-        };
+      if (data.replyTo) {
+        formData.append('replyTo', data.replyTo);
       }
-    }));
+      
+      if (data.attachments) {
+        data.attachments.forEach((file, index) => {
+          formData.append(`attachments`, file);
+        });
+      }
+
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setComments(prev => [result.comment, ...prev]);
+      } else {
+        throw new Error('Failed to add comment');
+      }
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      throw error;
+    }
   };
 
-  const handleDownload = () => {
-    // In a real app, this would download the actual file
-    console.log("Downloading document:", document.fileName);
-    // Create a temporary link to simulate download
-    const link = window.document.createElement('a');
-    link.href = '#';
-    link.download = document.fileName;
-    link.click();
+  const handleUpdateComment = async (commentId: string, content: string) => {
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          commentId,
+          content
+        })
+      });
+
+      if (response.ok) {
+        setComments(prev => 
+          prev.map(comment => 
+            comment.id === commentId 
+              ? { ...comment, content, isEdited: true, updatedAt: new Date().toISOString() }
+              : comment
+          )
+        );
+      } else {
+        throw new Error('Failed to update comment');
+      }
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ commentId })
+      });
+
+      if (response.ok) {
+        setComments(prev => prev.filter(comment => comment.id !== commentId));
+      } else {
+        throw new Error('Failed to delete comment');
+      }
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      throw error;
+    }
+  };
+
+  const handleReactToComment = async (commentId: string, reactionType: CommentReaction['type']) => {
+    if (!currentUser) return;
+
+    try {
+      const response = await fetch('/api/comments/reactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          commentId,
+          reactionType
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        setComments(prev => 
+          prev.map(comment => {
+            if (comment.id === commentId) {
+              const existingReactions = comment.reactions || [];
+              const userReactionIndex = existingReactions.findIndex(
+                r => r.userId === currentUser.id && r.type === reactionType
+              );
+
+              let newReactions;
+              if (userReactionIndex >= 0) {
+                // Remove existing reaction
+                newReactions = existingReactions.filter((_, index) => index !== userReactionIndex);
+              } else {
+                // Add new reaction
+                newReactions = [...existingReactions, {
+                  id: `temp-${Date.now()}`,
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  type: reactionType,
+                  createdAt: new Date().toISOString()
+                }];
+              }
+
+              return { ...comment, reactions: newReactions };
+            }
+            return comment;
+          })
+        );
+      } else {
+        throw new Error('Failed to react to comment');
+      }
+    } catch (error) {
+      console.error('Failed to react to comment:', error);
+      throw error;
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!document) return;
+    
+    try {
+      // Create a download link for the SharePoint file
+      window.open(document.sharePointPath, '_blank');
+    } catch (error) {
+      console.error('Failed to download document:', error);
+    }
   };
 
   const handleOpenInSharePoint = () => {
-    // In a real app, this would construct the actual SharePoint URL
-    console.log("Opening in SharePoint:", document.fileName);
-    const sharePointUrl = `https://company.sharepoint.com/sites/documents/${document.fileName}`;
-    window.open(sharePointUrl, '_blank');
+    if (!document) return;
+    window.open(document.sharePointPath, '_blank');
   };
 
-  const formatFileSize = (sizeInBytes: number): string => {
-    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
-    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
-    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileExtension = (filename: string): string => {
-    return filename.split('.').pop()?.toUpperCase() || 'FILE';
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
+
+  if (!document) return null;
+
+  const statusConfig = DOCUMENT_STATUS_CONFIG[document.status];
+  const fileTypeConfig = FILE_TYPE_CONFIG[document.fileType] || FILE_TYPE_CONFIG.default;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Document Details
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[calc(90vh-8rem)] overflow-y-auto">
-          <div className="space-y-6">
-            {/* Document Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold mb-2">{document.name}</h2>
-                <div className="flex items-center gap-3 mb-4">
-                  <Badge 
-                    variant={currentStatusConfig.variant}
-                    className="flex items-center gap-1"
-                  >
-                    <div className={`w-2 h-2 rounded-full ${currentStatusConfig.color}`} />
-                    {currentStatusConfig.label}
-                  </Badge>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    {getFileExtension(document.fileName)}
-                  </Badge>
-                  {document.version && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <Hash className="h-3 w-3" />
-                      v{document.version}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 ml-4">
-                <Button variant="outline" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-                <Button variant="outline" onClick={handleOpenInSharePoint}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in SharePoint
-                </Button>
-                {onEdit && (
-                  <Button onClick={() => onEdit(document)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                )}
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <DialogTitle className="flex items-center gap-2">
+                <FileIcon className="h-5 w-5" style={{ color: fileTypeConfig.color }} />
+                {document.name}
+              </DialogTitle>
+              <div className="flex items-center gap-2 mt-2">
+                <Badge 
+                  variant="outline" 
+                  className="text-xs"
+                  style={{ color: statusConfig.color }}
+                >
+                  {statusConfig.label}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  v{document.version}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {document.fileType.toUpperCase()}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {formatFileSize(document.fileSize)}
+                </span>
               </div>
             </div>
+            
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownload}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenInSharePoint}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in SharePoint
+              </Button>
+              {onEdit && (
+                <Button
+                  size="sm"
+                  onClick={() => onEdit(document)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogHeader>
 
-            <Separator />
+        <Tabs defaultValue="details" className="flex-1 overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="details">Document Details</TabsTrigger>
+            <TabsTrigger value="comments" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Comments ({comments.length})
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Document Information Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Basic Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">Created by</span>
-                      <p className="font-medium">{document.uploadedBy}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">Created on</span>
-                      <p className="font-medium">
-                        {new Date(document.uploadedAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">Last modified</span>
-                      <p className="font-medium">
-                        {new Date(document.lastModified).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {document.fileSize && (
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
+          <TabsContent value="details" className="mt-4 overflow-auto">
+            <ScrollArea className="h-[500px]">
+              <div className="space-y-6">
+                {/* Document Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Document Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <span className="text-sm text-muted-foreground">File size</span>
-                        <p className="font-medium">{formatFileSize(document.fileSize)}</p>
+                        <label className="text-sm font-medium text-muted-foreground">File Name</label>
+                        <p className="text-sm">{document.fileName}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">File Type</label>
+                        <p className="text-sm">{document.fileType.toUpperCase()}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">File Size</label>
+                        <p className="text-sm">{formatFileSize(document.fileSize)}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Version</label>
+                        <p className="text-sm">v{document.version}</p>
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Document Properties */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Tag className="h-5 w-5" />
-                    Properties
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">Status</span>
-                      <p className="font-medium">{currentStatusConfig.label}</p>
-                    </div>
-                  </div>
-
-                  {document.version && (
-                    <div className="flex items-center gap-3">
-                      <Hash className="h-4 w-4 text-muted-foreground" />
+                    {document.description && (
                       <div>
-                        <span className="text-sm text-muted-foreground">Version</span>
-                        <p className="font-medium">v{document.version}</p>
+                        <label className="text-sm font-medium text-muted-foreground">Description</label>
+                        <p className="text-sm whitespace-pre-wrap">{document.description}</p>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {document.tags && document.tags.length > 0 && (
-                    <div className="flex items-center gap-3">
-                      <Building className="h-4 w-4 text-muted-foreground" />
+                    {document.tags && document.tags.length > 0 && (
                       <div>
-                        <span className="text-sm text-muted-foreground">Tags</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <label className="text-sm font-medium text-muted-foreground">Tags</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
                           {document.tags.map((tag, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              <Tag className="h-3 w-3 mr-1" />
                               {tag}
                             </Badge>
                           ))}
                         </div>
                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Upload & Modification Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Upload & Modification History</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Uploaded By</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{document.uploadedBy}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Upload Date</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{formatDate(document.uploadedAt)}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Last Modified By</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{document.lastModifiedBy}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Last Modified</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{formatDate(document.lastModified)}</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </CardContent>
+                </Card>
 
-                  <div className="flex items-center gap-3">
-                    <Globe className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">File type</span>
-                      <p className="font-medium">{getFileExtension(document.fileName)} Document</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                {/* Custom Fields */}
+                {document.customFieldValues && Object.keys(document.customFieldValues).length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Custom Fields</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        {Object.entries(document.customFieldValues).map(([key, value]) => (
+                          <div key={key}>
+                            <label className="text-sm font-medium text-muted-foreground">
+                              {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                            </label>
+                            <p className="text-sm">{String(value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-            {/* Description */}
-            {document.description && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Description</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">
-                    {document.description}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+                {/* Checkout Information */}
+                {document.checkoutInfo && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Checkout Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Checked Out By</label>
+                        <p className="text-sm">{document.checkoutInfo.checkedOutBy}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Checked Out At</label>
+                        <p className="text-sm">{formatDate(document.checkoutInfo.checkedOutAt)}</p>
+                      </div>
+                      {document.checkoutInfo.reason && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Reason</label>
+                          <p className="text-sm">{document.checkoutInfo.reason}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
 
-            {/* Document Preview Placeholder */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Document Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-center h-32 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/25">
-                  <div className="text-center">
-                    <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      Preview not available for {getFileExtension(document.fileName)} files
-                    </p>
-                    <Button variant="link" className="text-sm" onClick={handleDownload}>
-                      Download to view
-                    </Button>
-                  </div>
+          <TabsContent value="comments" className="mt-4 overflow-hidden">
+            <ScrollArea className="h-[500px]">
+              {loadingComments ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <span>Loading comments...</span>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Version Summary */}
-            {document.version && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Hash className="h-5 w-5" />
-                    Version Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">Current Version: v{document.version}</span>
-                      <Badge variant="outline">Latest</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Last updated on {new Date(document.lastModified).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })} by {document.lastModifiedBy}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejection Information */}
-            {document.status === 'rejected' && (
-              <DocumentRejectionDisplay document={document} />
-            )}
-
-            <Separator />
-
-            {/* Comments Section */}
-            <DocumentComments
-              documentId={document.id}
-              comments={comments}
-              onAddComment={handleAddComment}
-              onUpdateComment={handleUpdateComment}
-              onDeleteComment={handleDeleteComment}
-              onReactToComment={handleReactToComment}
-              currentUserId={currentUser.id}
-              currentUserName={currentUser.name}
-            />
-          </div>
-        </div>
+              ) : currentUser ? (
+                <DocumentComments
+                  documentId={document.id}
+                  comments={comments}
+                  onAddComment={handleAddComment}
+                  onUpdateComment={handleUpdateComment}
+                  onDeleteComment={handleDeleteComment}
+                  onReactToComment={handleReactToComment}
+                  currentUserId={currentUser.id}
+                  currentUserName={currentUser.name}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="text-lg font-medium mb-2">Please sign in</h3>
+                  <p className="text-muted-foreground">You need to be signed in to view and add comments.</p>
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
