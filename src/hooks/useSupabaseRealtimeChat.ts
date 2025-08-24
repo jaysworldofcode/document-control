@@ -28,7 +28,8 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
   const reactionUpdateCallbackRef = useRef<((messageId: string, reactions: ChatReaction[]) => void) | null>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    // if (!projectId) return;
+    console.log('Trying to connect')
 
     // Create a channel for this project's chat
     const chatChannel = supabase
@@ -137,31 +138,39 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
         async (payload) => {
           console.log('Reaction updated:', payload);
           
-          if (reactionUpdateCallbackRef.current && (payload.new || payload.old)) {
-            const messageId = payload.new?.message_id || payload.old?.message_id;
-            
-            if (messageId) {
-              // Fetch updated reactions for this message
-              const { data: reactions } = await supabase
-                .from('project_chat_reactions')
-                .select(`
-                  id,
-                  reaction_type,
-                  created_at,
-                  users(id, first_name, last_name)
-                `)
-                .eq('message_id', messageId);
+          // Extract message_id from payload using type assertion
+          let messageId: string | undefined;
+          
+          if (payload.new) {
+            messageId = (payload.new as any).message_id;
+          } else if (payload.old) {
+            messageId = (payload.old as any).message_id;
+          }
+          
+          // Only proceed if we have both a message ID and a callback registered
+          if (messageId && reactionUpdateCallbackRef.current) {
+            // Fetch updated reactions for this message
+            const { data: reactions } = await supabase
+              .from('project_chat_reactions')
+              .select(`
+                id,
+                reaction_type,
+                created_at,
+                users(id, first_name, last_name)
+              `)
+              .eq('message_id', messageId);
 
-              const formattedReactions: ChatReaction[] = reactions?.map(reaction => ({
-                id: reaction.id,
-                type: reaction.reaction_type as ChatReaction['type'],
-                userId: (reaction.users as any)?.id,
-                userName: `${(reaction.users as any)?.first_name || ''} ${(reaction.users as any)?.last_name || ''}`.trim() || 'Unknown User',
-                createdAt: reaction.created_at
-              })) || [];
+            // Format the reactions
+            const formattedReactions: ChatReaction[] = reactions?.map(reaction => ({
+              id: reaction.id,
+              type: reaction.reaction_type as ChatReaction['type'], 
+              userId: (reaction.users as any)?.id,
+              userName: `${(reaction.users as any)?.first_name || ''} ${(reaction.users as any)?.last_name || ''}`.trim() || 'Unknown User',
+              createdAt: reaction.created_at
+            })) || [];
 
-              reactionUpdateCallbackRef.current(messageId, formattedReactions);
-            }
+            // Call the reaction update callback
+            reactionUpdateCallbackRef.current(messageId, formattedReactions);
           }
         }
       )
