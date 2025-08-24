@@ -13,14 +13,14 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={className}>
       <div className="flex h-full flex-col">
         {/* Logo/Brand */}
-        <div className="flex h-16 items-center border-b px-6">
+        {/* <div className="flex h-16 items-center border-b px-6">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <FileText className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="text-lg font-semibold">Document Control</span>
           </div>
-        </div>
+        </div> */}
 
         {/* Navigation */}
         <div className="flex-1 overflow-auto py-4">
