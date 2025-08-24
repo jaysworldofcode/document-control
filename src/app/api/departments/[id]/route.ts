@@ -36,7 +36,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const departmentId = params.id;
+    const { id: departmentId } = params;
     const body = await request.json();
     const { name, description, managerId, budget } = body;
 
@@ -92,7 +92,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const departmentId = params.id;
+    const { id: departmentId } = params;
 
     // Check if department has users
     const { data: users, error: usersError } = await supabase

@@ -12,7 +12,8 @@ import {
   Archive,
   ClipboardList,
   Building,
-  UserCheck
+  UserCheck,
+  MessageCircle
 } from "lucide-react";
 
 const navigationItems = [
@@ -40,6 +41,11 @@ const navigationItems = [
     title: "Approvals",
     href: "/approvals",
     icon: UserCheck,
+  },
+  {
+    title: "Messages",
+    href: "/messages",
+    icon: MessageCircle,
   },
   {
     title: "Archive",

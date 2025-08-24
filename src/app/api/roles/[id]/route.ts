@@ -36,7 +36,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const roleId = params.id;
+    const { id: roleId } = params;
     const body = await request.json();
     const { name, description, permissions } = body;
 
@@ -101,7 +101,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const roleId = params.id;
+    const { id: roleId } = params;
 
     // Check if it's a system role (cannot be deleted)
     const { data: existingRole } = await supabase
