@@ -753,7 +753,9 @@ export default function MessagesPage() {
                           
                           {/* Reactions */}
                           {hasReactions && (
-                            <div className="mt-2 flex flex-wrap gap-1">
+                            <div className={`mt-2 flex flex-wrap gap-1 ${
+                              isOwnMessage ? 'justify-end' : 'justify-start'
+                            }`}>
                               {Object.entries(reactionCounts).map(([emoji, data]) => {
                                 const userReacted = data.users.includes(user?.id || '');
                                 return (
@@ -774,8 +776,8 @@ export default function MessagesPage() {
                           )}
                         </div>
                         
-                        {/* Add reaction button (shows on hover) */}
-                        <div className="absolute bottom-0 right-0 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pt-1 z-50">
+                        {/* Add reaction button (shows on hover) - positioned based on message direction */}
+                        <div className={`absolute bottom-0 ${isOwnMessage ? 'right-0' : 'left-0'} translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pt-1 z-50`}>
                           <div className="flex items-center space-x-1 bg-background rounded-full shadow-md p-1">
                             <button 
                               className="p-1 hover:bg-muted rounded-full" 
