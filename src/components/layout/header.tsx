@@ -77,9 +77,9 @@ export function Header({ className }: HeaderProps) {
           </Sheet>
 
           {/* Desktop logo (hidden on mobile) */}
-          <div className="hidden lg:flex items-center gap-2">
+          {/* <div className="hidden lg:flex items-center gap-2">
             <h1 className="text-lg font-semibold">Dashboard</h1>
-          </div>
+          </div> */}
         </div>
 
         {/* Center - Search (hidden on mobile) */}

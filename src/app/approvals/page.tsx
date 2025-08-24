@@ -276,9 +276,9 @@ export default function ApprovalsPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Document Approvals</h1>
+            <h1 className="text-3xl font-bold tracking-tight mb-4">Document Approvals</h1>
             <p className="text-muted-foreground">
               Review and approve documents awaiting your attention
             </p>

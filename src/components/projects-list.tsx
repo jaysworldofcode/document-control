@@ -220,9 +220,9 @@ export function ProjectsList() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-4">Projects</h1>
           <p className="text-muted-foreground">
             Manage and track all your document control projects
           </p>

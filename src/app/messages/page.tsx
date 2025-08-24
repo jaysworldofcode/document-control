@@ -449,7 +449,7 @@ export default function MessagesPage() {
         <div className="h-[calc(100vh-4rem)] flex">
           {/* Conversations Sidebar Skeleton */}
           <div className="w-80 border-r bg-muted/10">
-            <div className="p-4 border-b">
+            <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="h-6 w-24 bg-muted rounded animate-pulse" />
                 <div className="h-8 w-8 bg-muted rounded animate-pulse" />
@@ -501,10 +501,10 @@ export default function MessagesPage() {
       <div className="h-[calc(100vh-4rem)] flex">
         {/* Conversations Sidebar */}
         <div className="w-80 border-r bg-muted/10">
-          <div className="p-4 border-b">
+          <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-lg font-semibold">Messages</h2>
+                <h2 className="text-3xl font-bold tracking-tight">Messages</h2>
               </div>
               <div className="flex gap-2">
                 <Button

@@ -22,8 +22,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Header />
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto bg-muted/50">
-          <div className="container p-0">
+        <main className="flex-1 overflow-auto bg-white">
+          <div className="container pl-4 pr-4">
             {children}
           </div>
         </main>
