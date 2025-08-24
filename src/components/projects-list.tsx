@@ -323,7 +323,7 @@ export function ProjectsList() {
             {/* Project Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-lg leading-tight mb-2">
+                <h3 className="font-semibold capitalize text-lg leading-tight mb-2">
                   {project.name}
                 </h3>
                 <div className="flex items-center gap-2 mb-3">

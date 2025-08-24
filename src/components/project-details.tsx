@@ -384,7 +384,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight capitalize">{project.name}</h1>
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex gap-2">

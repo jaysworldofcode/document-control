@@ -18,6 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -25,9 +32,18 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Download, Search, X } from "lucide-react";
+import { Calendar as CalendarIcon, Download, Search, X, Info, Eye, History, FileText, ExternalLink, MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { DocumentViewModal } from "@/components/forms/document-view-modal";
+import { VersionHistoryModal } from "@/components/forms/version-history-modal";
+import { DocumentLogsModal } from "@/components/forms/document-logs-modal";
+import { Document as BaseDocument } from "@/types/document.types";
+
+// Extended document interface with project name from API
+interface Document extends BaseDocument {
+  projectName: string;
+}
 
 interface DocumentsTableProps {
   className?: string;
@@ -36,19 +52,17 @@ interface DocumentsTableProps {
 interface Project {
   id: string;
   name: string;
+  custom_fields?: CustomField[];
 }
 
-interface Document {
+interface CustomField {
   id: string;
   name: string;
-  fileName: string;
-  status: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  projectName: string;
-  fileType: string;
-  fileSize: number;
+  type: string;
+  label: string;
 }
+
+
 
 interface PaginationInfo {
   page: number;
@@ -62,6 +76,7 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [allCustomFields, setAllCustomFields] = useState<CustomField[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     pageSize: 10,
@@ -77,6 +92,11 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [sortBy, setSortBy] = useState('uploaded_at');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  // Modal states
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [versionHistoryDocument, setVersionHistoryDocument] = useState<Document | null>(null);
+  const [logsDocument, setLogsDocument] = useState<Document | null>(null);
 
   const fetchDocuments = async () => {
     try {
@@ -122,6 +142,19 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
       
       const data = await response.json();
       setProjects(data);
+
+      // Collect all unique custom fields from all projects
+      const customFieldsMap = new Map<string, CustomField>();
+      data.forEach((project: Project) => {
+        if (project.custom_fields) {
+          project.custom_fields.forEach((field: CustomField) => {
+            if (field.id && field.name && !customFieldsMap.has(field.id)) {
+              customFieldsMap.set(field.id, field);
+            }
+          });
+        }
+      });
+      setAllCustomFields(Array.from(customFieldsMap.values()));
     } catch (error) {
       console.error('Error fetching projects:', error);
     }
@@ -170,17 +203,81 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
     link.click();
   };
 
+  // Action handlers
+  const handleDownloadDocument = (document: Document) => {
+    console.log("Downloading document:", document.fileName);
+    // In a real app, this would construct the actual download URL
+    const link = window.document.createElement('a');
+    link.href = document.sharePointPath || '#';
+    link.download = document.fileName;
+    link.click();
+  };
+
+  const handleOpenInSharePoint = (document: Document) => {
+    console.log("Opening in SharePoint:", document.fileName);
+    if (document.sharePointPath) {
+      window.open(document.sharePointPath, '_blank');
+    } else {
+      toast({
+        variant: "destructive",
+        title: "SharePoint path not available",
+        description: "This document doesn't have a SharePoint path configured.",
+      });
+    }
+  };
+
   return (
     <div className={cn("space-y-4", className)}>
       {/* Filters */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex-1 min-w-[200px]">
-          <Input
-            placeholder="Search documents..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
+          <div className="space-y-1">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search documents, filenames, and custom fields..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                title="Search by document name, file name, or any custom field value"
+                className="flex-1"
+              />
+              {allCustomFields.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon" className="shrink-0">
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="start">
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">Searchable Fields</h4>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-sm font-medium">Document Fields:</p>
+                          <p className="text-xs text-muted-foreground">Document Name, File Name</p>
+                        </div>
+                        {allCustomFields.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium">Custom Fields:</p>
+                            <div className="grid gap-1">
+                              {allCustomFields.map((field) => (
+                                <p key={field.id} className="text-xs text-muted-foreground">
+                                  • {field.name} ({field.type})
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Search works across all field values. For example, if you have a "Document ID" field with value "DOC-123", searching for "DOC-123" will find that document.
+                      </p>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          </div>
         </div>
 
         <Select value={status} onValueChange={setStatus}>
@@ -285,6 +382,7 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
               <TableHead>Upload Date</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Size</TableHead>
+              <TableHead className="w-[50px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -323,6 +421,38 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
                   <TableCell>{new Date(doc.uploadedAt).toLocaleDateString()}</TableCell>
                   <TableCell>{doc.fileType}</TableCell>
                   <TableCell>{(doc.fileSize / 1024).toFixed(2)} KB</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setViewingDocument(doc)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setVersionHistoryDocument(doc)}>
+                          <History className="h-4 w-4 mr-2" />
+                          Version History
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setLogsDocument(doc)}>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Activity Logs
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleOpenInSharePoint(doc)}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Open in SharePoint
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -354,6 +484,25 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
           </Button>
         </div>
       </div>
+
+      {/* Modals */}
+      <DocumentViewModal
+        isOpen={viewingDocument !== null}
+        onClose={() => setViewingDocument(null)}
+        document={viewingDocument}
+      />
+
+      <VersionHistoryModal
+        isOpen={versionHistoryDocument !== null}
+        onClose={() => setVersionHistoryDocument(null)}
+        document={versionHistoryDocument}
+      />
+
+      <DocumentLogsModal
+        isOpen={logsDocument !== null}
+        onClose={() => setLogsDocument(null)}
+        document={logsDocument}
+      />
     </div>
   );
 }

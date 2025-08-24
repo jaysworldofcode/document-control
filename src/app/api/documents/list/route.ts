@@ -105,9 +105,41 @@ export async function GET(request: NextRequest) {
       .from('documents')
       .select('*, uploaded_by_user:users!documents_uploaded_by_fkey(id, first_name, last_name, email), project:projects(id, name, custom_fields)');
 
-    // Apply filters
+    // Apply filters with custom field search
     if (search) {
-      query = query.or(`title.ilike.%${search}%,file_name.ilike.%${search}%`);
+      // First, get all projects with their custom fields to build search terms
+      const { data: projectsWithFields } = await supabase
+        .from('projects')
+        .select('id, custom_fields')
+        .in('id', projectIds.map(p => p.id));
+
+      // Build search conditions for custom fields
+      const customFieldSearchConditions: string[] = [];
+      
+      if (projectsWithFields) {
+        projectsWithFields.forEach(project => {
+          if (project.custom_fields && Array.isArray(project.custom_fields)) {
+            project.custom_fields.forEach((field: any) => {
+              if (field.id) {
+                // Search in custom_field_values for this field (only non-null values)
+                const condition = `custom_field_values->>${field.id}.ilike.%${search}%`;
+                customFieldSearchConditions.push(condition);
+              }
+            });
+          }
+        });
+      }
+
+      // Combine title, filename, and custom field searches
+      const searchConditions = [
+        `title.ilike.%${search}%`,
+        `file_name.ilike.%${search}%`,
+        ...customFieldSearchConditions
+      ];
+
+      if (searchConditions.length > 0) {
+        query = query.or(searchConditions.join(','));
+      }
     }
     if (status && status !== 'all') {
       query = query.eq('status', status);
@@ -122,8 +154,8 @@ export async function GET(request: NextRequest) {
       query = query.lte('uploaded_at', endDate);
     }
 
-    // Filter to show only current user's documents
-    query = query.eq('uploaded_by', user.userId);
+    // Show all documents (not just current user's documents)
+    // Removed: query = query.eq('uploaded_by', user.userId);
 
     // Only show documents from user's organization's projects
     query = query.in('project_id', projectIds.map(p => p.id));
@@ -143,11 +175,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch documents' }, { status: 500 });
     }
 
-    // Get total count for current user's documents
+    // Get total count for all documents in user's organization
     const countResult = await supabase
       .from('documents')
       .select('*', { count: 'exact', head: true })
-      .eq('uploaded_by', user.userId)
       .in('project_id', projectIds.map(p => p.id));
 
     const totalCount = countResult.count || 0;
