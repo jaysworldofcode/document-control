@@ -22,7 +22,7 @@ async function authenticateUser(request: NextRequest) {
 // PUT /api/departments/[id] - Update a department
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const user = await authenticateUser(request);
@@ -36,7 +36,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const { id: departmentId } = context.params;
+    const { id: departmentId } = params;
     const body = await request.json();
     const { name, description, managerId, budget } = body;
 
@@ -78,7 +78,7 @@ export async function PUT(
 // DELETE /api/departments/[id] - Delete a department
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const user = await authenticateUser(request);
@@ -92,7 +92,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const { id: departmentId } = context.params;
+    const { id: departmentId } = params;
 
     // Check if department has users
     const { data: users, error: usersError } = await supabase
