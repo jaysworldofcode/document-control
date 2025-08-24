@@ -404,20 +404,20 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
                   <TableCell>{doc.name}</TableCell>
                   <TableCell>
                     <span className={cn(
-                      "px-2 py-1 rounded-full text-xs font-medium",
+                      "px-2 py-1 rounded-full text-xs font-medium capitalize",
                       {
                         "bg-gray-100": doc.status === "draft",
                         "bg-yellow-100": doc.status === "pending_review",
                         "bg-blue-100": doc.status === "under_review",
                         "bg-green-100": doc.status === "approved",
                         "bg-red-100": doc.status === "rejected"
-                      }
+                      },
                     )}>
                       {doc.status.replace(/_/g, ' ')}
                     </span>
                   </TableCell>
-                  <TableCell>{doc.projectName}</TableCell>
-                  <TableCell>{doc.uploadedBy}</TableCell>
+                  <TableCell className="capitalize">{doc.projectName}</TableCell>
+                  <TableCell className="capitalize">{doc.uploadedBy}</TableCell>
                   <TableCell>{new Date(doc.uploadedAt).toLocaleDateString()}</TableCell>
                   <TableCell>{doc.fileType}</TableCell>
                   <TableCell>{(doc.fileSize / 1024).toFixed(2)} KB</TableCell>

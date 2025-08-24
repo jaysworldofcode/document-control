@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
-import { logDocumentActivity } from '@/utils/document-logging';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,86 +25,76 @@ async function verifyToken(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest) {
   try {
+    const now = new Date().toISOString();
     const user = await verifyToken(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: documentId } = params;
-    const formData = await request.formData();
-    const comments = formData.get('comments') as string;
-    const files = formData.getAll('files');
+    const params = await request.nextUrl.pathname.split('/');
+    const documentId = params[params.indexOf('documents') + 1];
 
-    // Get the current workflow and user's step
-    const { data: workflow, error: workflowError } = await supabase
-      .from('document_approval_workflows')
-      .select(`
-        *,
-        document_approval_steps(*)
-      `)
-      .eq('document_id', documentId)
-      .in('overall_status', ['pending', 'under-review'])
-      .single();
-
-    if (workflowError || !workflow) {
-      return NextResponse.json({ error: 'No active workflow found' }, { status: 404 });
+    if (!documentId) {
+      return NextResponse.json({ error: 'Document ID is required' }, { status: 400 });
     }
 
+    const body = await request.json();
+    const { comments, files } = body;
+
+    // Get the current workflow and check if user is authorized to act on it
+    const { data: workflow, error: workflowError } = await supabase
+      .from('document_approval_workflows')
+      .select(\`
+        *,
+        document_approval_steps(
+          *,
+          approver:users(id, first_name, last_name, email)
+        )
+      \`)
+      .eq('document_id', documentId)
+      .in('overall_status', ['pending', 'under-review'])
+      .order('created_at', { ascending: false })
+      .single();
+
+    if (workflowError) {
+      console.error('Error fetching workflow:', workflowError);
+      return NextResponse.json({ error: 'Failed to fetch workflow' }, { status: 500 });
+    }
+
+    if (!workflow) {
+      return NextResponse.json({ 
+        error: 'No active approval workflow found for this document' 
+      }, { status: 404 });
+    }
+
+    // Find the current user's step
     const userStep = workflow.document_approval_steps.find(
-      (step: any) => step.approver_id === user.userId
+      step => step.approver_id === user.userId
     );
 
     if (!userStep) {
-      return NextResponse.json({ error: 'Not authorized to reject this document' }, { status: 403 });
+      return NextResponse.json({ 
+        error: 'You are not an approver for this document' 
+      }, { status: 403 });
     }
 
-    const now = new Date().toISOString();
-
-    // Handle file uploads
-    const uploadedFiles = [];
-    for (const file of files) {
-      const fileName = file.name;
-      const fileType = file.type;
-      const fileSize = file.size;
-
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('rejection-attachments')
-        .upload(`${documentId}/${userStep.id}/${fileName}`, file, {
-          contentType: fileType,
-          upsert: true
-        });
-
-      if (uploadError) {
-        console.error('Error uploading file:', uploadError);
-        continue;
-      }
-
-      // Create attachment record
-      const { data: attachment, error: attachmentError } = await supabase
-        .from('document_rejection_attachments')
-        .insert({
-          step_id: userStep.id,
-          file_name: fileName,
-          file_size: fileSize,
-          file_type: fileType,
-          storage_path: uploadData.path,
-          uploaded_by: user.userId
-        })
-        .select()
-        .single();
-
-      if (attachmentError) {
-        console.error('Error creating attachment record:', attachmentError);
-        continue;
-      }
-
-      uploadedFiles.push(attachment);
+    // Check if it's the user's turn to approve (sequential approval)
+    const currentStep = workflow.current_step;
+    if (userStep.step_order !== currentStep) {
+      return NextResponse.json({ 
+        error: \`It's not your turn to approve. Currently waiting for approval from step \${currentStep}\` 
+      }, { status: 403 });
     }
 
-    // Update step status
+    if (userStep.status !== 'pending') {
+      return NextResponse.json({ 
+        error: 'You have already acted on this document' 
+      }, { status: 409 });
+    }
+
+    // Update the approval step
     const { error: stepError } = await supabase
       .from('document_approval_steps')
       .update({
@@ -117,59 +106,71 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .eq('id', userStep.id);
 
     if (stepError) {
-      console.error('Error updating step:', stepError);
-      return NextResponse.json({ error: 'Failed to update step' }, { status: 500 });
+      console.error('Error updating approval step:', stepError);
+      return NextResponse.json({ error: 'Failed to update approval step' }, { status: 500 });
     }
 
-    // Update workflow status
-    const { error: workflowUpdateError } = await supabase
+    // Update workflow and document status
+    const workflowUpdate = {
+      overall_status: 'rejected',
+      completed_at: now,
+      updated_at: now
+    };
+
+    // Update the workflow
+    const { error: updateError } = await supabase
       .from('document_approval_workflows')
-      .update({
-        overall_status: 'rejected',
-        completed_at: now,
-        updated_at: now
-      })
+      .update(workflowUpdate)
       .eq('id', workflow.id);
 
-    if (workflowUpdateError) {
-      console.error('Error updating workflow:', workflowUpdateError);
+    if (updateError) {
+      console.error('Error updating workflow:', updateError);
       return NextResponse.json({ error: 'Failed to update workflow' }, { status: 500 });
     }
 
-    // Update document status
+    // Update document status to rejected
     const { error: docError } = await supabase
       .from('documents')
-      .update({
-        status: 'rejected',
-        updated_at: now
+      .update({ 
+        status: 'rejected', 
+        updated_at: now 
       })
       .eq('id', documentId);
 
     if (docError) {
-      console.error('Error updating document:', docError);
-      return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
+      console.error('Error updating document status:', docError);
+      return NextResponse.json({ error: 'Failed to update document status' }, { status: 500 });
     }
 
-    // Log the activity
-    await logDocumentActivity(documentId, {
-      action: 'rejected',
-      description: 'Document rejected',
-      details: {
-        comments,
-        attachments: uploadedFiles.length,
-        step: userStep.step_order,
-        totalSteps: workflow.total_steps
+    // If there are files, handle them
+    if (files && files.length > 0) {
+      for (const fileInfo of files) {
+        // Create attachment record
+        const { error: attachmentError } = await supabase
+          .from('document_rejection_attachments')
+          .insert({
+            step_id: userStep.id,
+            file_name: fileInfo.name,
+            file_size: fileInfo.size,
+            file_type: fileInfo.type,
+            uploaded_by: user.userId,
+            uploaded_at: now
+          });
+
+        if (attachmentError) {
+          console.error('Error creating attachment record:', attachmentError);
+          continue;
+        }
       }
-    });
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Document rejected successfully',
-      attachments: uploadedFiles
+      message: 'Document rejected successfully'
     });
 
   } catch (error) {
-    console.error('Error in rejection:', error);
+    console.error('Error in rejection action:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

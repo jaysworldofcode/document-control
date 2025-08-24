@@ -177,7 +177,7 @@ export default function ApprovalsPage() {
     if (!rejectingDocument) return;
     
     try {
-      // First, reject the document
+      // First, reject the document with comments
       const rejectResponse = await fetch(`/api/documents/${rejectingDocument.id}/approvals`, {
         method: 'PUT',
         headers: {
@@ -194,56 +194,39 @@ export default function ApprovalsPage() {
         throw new Error(errorData.error || 'Failed to reject document');
       }
 
-      const rejectResult = await rejectResponse.json();
-
       // If there are files, upload them
       if (files && files.length > 0) {
-        // Get the step ID from the workflow
-        const { data: workflow } = await supabase
-          .from('document_approval_workflows')
-          .select(`
-            document_approval_steps(
-              id,
-              approver_id
-            )
-          `)
-          .eq('document_id', rejectingDocument.id)
-          .single();
+        // Get the workflow to find the step ID
+        const workflowResponse = await fetch(`/api/documents/${rejectingDocument.id}/approvals`);
+        const workflowData = await workflowResponse.json();
+        const workflow = workflowData.workflow;
 
-        const userStep = workflow.document_approval_steps.find(
-          (step: any) => step.approver_id === user.userId
-        );
-
-        if (userStep) {
-          const formData = new FormData();
-          files.forEach(file => {
-            formData.append('files', file);
-          });
-
-          const attachmentResponse = await fetch(
-            `/api/documents/${rejectingDocument.id}/approvals/${userStep.id}/attachments`,
-            {
-              method: 'POST',
-              body: formData
-            }
+        if (workflow) {
+          const userStep = workflow.document_approval_steps.find(
+            (step: any) => step.approver_id === workflow.current_step
           );
 
-          if (!attachmentResponse.ok) {
-            console.error('Failed to upload attachments:', await attachmentResponse.text());
+          if (userStep) {
+            const formData = new FormData();
+            files.forEach(file => {
+              formData.append('files', file);
+            });
+
+            const attachmentResponse = await fetch(
+              `/api/documents/${rejectingDocument.id}/approvals/${userStep.id}/attachments`,
+              {
+                method: 'POST',
+                body: formData
+              }
+            );
+
+            if (!attachmentResponse.ok) {
+              console.error('Failed to upload attachments:', await attachmentResponse.text());
+            }
           }
         }
       }
 
-      const response = rejectResponse;
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to reject document');
-      }
-
-      const result = await response.json();
-      console.log("Document rejected successfully:", result);
-      
       // Refresh the documents list
       fetchPendingApprovals();
       

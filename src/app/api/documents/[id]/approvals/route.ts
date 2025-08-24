@@ -433,41 +433,6 @@ export async function PUT(request: NextRequest) {
     };
 
     if (action === 'reject') {
-      // If rejected, handle file attachments first
-      if (files.length > 0) {
-        for (const file of files) {
-          // Upload file to Supabase storage
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('rejection-attachments')
-            .upload(`${documentId}/${userStep.id}/${file.name}`, file, {
-              contentType: file.type,
-              upsert: true
-            });
-
-          if (uploadError) {
-            console.error('Error uploading file:', uploadError);
-            continue;
-          }
-
-          // Create attachment record
-          const { error: attachmentError } = await supabase
-            .from('document_rejection_attachments')
-            .insert({
-              step_id: userStep.id,
-              file_name: file.name,
-              file_size: file.size,
-              file_type: file.type,
-              storage_path: uploadData.path,
-              uploaded_by: user.userId
-            });
-
-          if (attachmentError) {
-            console.error('Error creating attachment record:', attachmentError);
-            continue;
-          }
-        }
-      }
-
       // If rejected, mark workflow as rejected
       workflowUpdate.overall_status = 'rejected';
       workflowUpdate.completed_at = now;
