@@ -181,20 +181,61 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
   };
 
   const exportToCsv = () => {
-    const headers = ['Name', 'File Name', 'Status', 'Uploaded By', 'Upload Date', 'Project', 'Type', 'Size'];
-    const csvContent = [
-        headers.join(','),
-        ...documents.map(doc => [
-          `"${doc.name}"`,
-          `"${doc.fileName}"`,
-          `"${doc.status}"`,
-          `"${doc.uploadedBy}"`,
-          `"${new Date(doc.uploadedAt).toLocaleDateString()}"`,
-          `"${doc.projectName}"`,
-          `"${doc.fileType}"`,
-          `"${(doc.fileSize / 1024).toFixed(2)} KB"`
-        ].join(','))
-      ].join('\n');
+    // Get the unique custom fields from all documents with values
+    const allCustomFieldKeys = new Set<string>();
+    
+    // Gather all custom field keys from documents
+    documents.forEach(doc => {
+      if (doc.customFieldValues) {
+        Object.keys(doc.customFieldValues).forEach(key => {
+          allCustomFieldKeys.add(key);
+        });
+      }
+    });
+    
+    // Map custom field keys to their labels if possible
+    const customFieldHeaders = Array.from(allCustomFieldKeys);
+    const customFieldLabels = customFieldHeaders.map(key => {
+      // Find the custom field definition in allCustomFields
+      const fieldDef = allCustomFields.find(field => field.id === key);
+      return fieldDef ? fieldDef.label || fieldDef.name : key;
+    });
+    
+    // Create header with base fields plus custom fields
+    const baseHeaders = ['Name', 'File Name', 'Status', 'Uploaded By', 'Upload Date', 'Project', 'Type', 'Size'];
+    const headers = [...baseHeaders, ...customFieldLabels];
+    
+    const rows = documents.map(doc => {
+      // Create base row data
+      const baseRowData = [
+        `"${doc.name || ''}"`,
+        `"${doc.fileName || ''}"`,
+        `"${doc.status || ''}"`,
+        `"${doc.uploadedBy || ''}"`,
+        `"${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ''}"`,
+        `"${doc.projectName || ''}"`,
+        `"${doc.fileType || ''}"`,
+        `"${doc.fileSize ? (doc.fileSize / 1024).toFixed(2) + ' KB' : ''}"`,
+      ];
+      
+      // Add custom field values
+      const customFieldValues = customFieldHeaders.map(key => {
+        const value = doc.customFieldValues && doc.customFieldValues[key];
+        if (value === null || value === undefined) return '""';
+        
+        // If the value is an object or array, stringify it
+        if (typeof value === 'object') {
+          return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+        }
+        
+        // Escape quotes in string values
+        return `"${String(value).replace(/"/g, '""')}"`;
+      });
+      
+      return [...baseRowData, ...customFieldValues].join(',');
+    });
+    
+    const csvContent = [headers.join(','), ...rows].join('\n');
       
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
