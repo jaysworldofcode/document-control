@@ -677,7 +677,7 @@ export function ProjectSettings({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {/* <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="tenantId">Tenant ID *</Label>
                 <Input
@@ -697,9 +697,9 @@ export function ProjectSettings({
                   placeholder="Enter Azure AD app client ID"
                 />
               </div>
-            </div>
+            </div> */}
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="clientSecret">Client Secret *</Label>
               <Input
                 id="clientSecret"
@@ -708,7 +708,7 @@ export function ProjectSettings({
                 onChange={(e) => handleConfigInputChange('client_secret', e.target.value)}
                 placeholder="Enter Azure AD app client secret"
               />
-            </div>
+            </div> */}
 
             <div className="space-y-2">
               <Label htmlFor="siteUrl">SharePoint Site URL *</Label>
