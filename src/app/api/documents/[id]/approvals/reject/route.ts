@@ -46,13 +46,13 @@ export async function POST(request: NextRequest) {
     // Get the current workflow and check if user is authorized to act on it
     const { data: workflow, error: workflowError } = await supabase
       .from('document_approval_workflows')
-      .select(\`
+      .select(`
         *,
         document_approval_steps(
           *,
           approver:users(id, first_name, last_name, email)
         )
-      \`)
+      `)
       .eq('document_id', documentId)
       .in('overall_status', ['pending', 'under-review'])
       .order('created_at', { ascending: false })
@@ -69,9 +69,27 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    // Define the step type based on the query structure
+    interface ApprovalStep {
+      id: string;
+      approver_id: string;
+      step_order: number;
+      status: string;
+      comments?: string;
+      rejected_at?: string;
+      updated_at?: string;
+      approver?: {
+        id: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+      };
+      [key: string]: any; // For any other properties
+    }
+    
     // Find the current user's step
     const userStep = workflow.document_approval_steps.find(
-      step => step.approver_id === user.userId
+      (step: ApprovalStep) => step.approver_id === user.userId
     );
 
     if (!userStep) {
@@ -84,7 +102,7 @@ export async function POST(request: NextRequest) {
     const currentStep = workflow.current_step;
     if (userStep.step_order !== currentStep) {
       return NextResponse.json({ 
-        error: \`It's not your turn to approve. Currently waiting for approval from step \${currentStep}\` 
+        error: `It's not your turn to approve. Currently waiting for approval from step ${currentStep}` 
       }, { status: 403 });
     }
 

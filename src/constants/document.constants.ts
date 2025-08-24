@@ -23,28 +23,43 @@ export const MOCK_DOCUMENTS: Document[] = [
       "review-cycle": "Quarterly"
     },
     approvalWorkflow: {
-      currentStep: "completed",
-      status: "approved",
-      approvers: [
+      id: "workflow_001",
+      currentStep: 2,
+      totalSteps: 2,
+      overallStatus: 'approved',
+      steps: [
         {
-          id: "ap-001",
+          id: "step_001_1",
+          approverId: "user_123",
           approverName: "Sarah Wilson",
           approverEmail: "sarah.wilson@techcorp.com",
-          step: 1,
-          status: "approved",
+          department: "Engineering",
+          order: 1,
+          status: 'approved',
           approvedAt: "2024-08-14T14:20:00Z",
-          comments: "Architecture looks solid. Approved for implementation."
+          comments: "Architecture looks solid. Approved for implementation.",
+          viewedDocument: true,
+          downloadedDocument: true,
+          openedInSharePoint: false
         },
         {
-          id: "ap-002",
+          id: "step_001_2",
+          approverId: "user_234",
           approverName: "David Chen",
           approverEmail: "david.chen@techcorp.com",
-          step: 2,
-          status: "approved",
+          department: "Security",
+          order: 2,
+          status: 'approved',
           approvedAt: "2024-08-15T09:15:00Z",
-          comments: "Security protocols are comprehensive. Good to go."
+          comments: "Security protocols are comprehensive. Good to go.",
+          viewedDocument: true,
+          downloadedDocument: false,
+          openedInSharePoint: true
         }
-      ]
+      ],
+      requestedBy: "John Doe",
+      requestedAt: "2024-08-13T10:00:00Z",
+      completedAt: "2024-08-15T09:15:00Z"
     },
     revisionHistory: [
       {
@@ -95,24 +110,38 @@ export const MOCK_DOCUMENTS: Document[] = [
       "responsive": "Yes"
     },
     approvalWorkflow: {
-      currentStep: "step-1",
-      status: "pending",
-      approvers: [
+      id: "workflow_002",
+      currentStep: 1,
+      totalSteps: 2,
+      overallStatus: 'pending',
+      steps: [
         {
-          id: "ap-003",
+          id: "step_002_1",
+          approverId: "user_345",
           approverName: "Mike Johnson",
           approverEmail: "mike.johnson@techcorp.com",
-          step: 1,
-          status: "pending"
+          department: "UX Design",
+          order: 1,
+          status: 'pending',
+          viewedDocument: false,
+          downloadedDocument: false,
+          openedInSharePoint: false
         },
         {
-          id: "ap-004",
+          id: "step_002_2",
+          approverId: "user_456",
           approverName: "Emily Rodriguez",
           approverEmail: "emily.rodriguez@techcorp.com",
-          step: 2,
-          status: "pending"
+          department: "Product Management",
+          order: 2,
+          status: 'pending',
+          viewedDocument: false,
+          downloadedDocument: false,
+          openedInSharePoint: false
         }
-      ]
+      ],
+      requestedBy: "Jane Smith",
+      requestedAt: "2024-08-18T17:00:00Z"
     },
     revisionHistory: [
       {
@@ -309,19 +338,29 @@ export const MOCK_DOCUMENTS: Document[] = [
       "compliance-standard": "ISO 27001"
     },
     approvalWorkflow: {
-      currentStep: "completed",
-      status: "approved",
-      approvers: [
+      id: "workflow_005",
+      currentStep: 1,
+      totalSteps: 1,
+      overallStatus: 'approved',
+      steps: [
         {
-          id: "ap-005",
+          id: "step_005_1",
+          approverId: "user_789",
           approverName: "Alex Kumar",
           approverEmail: "alex.kumar@techcorp.com",
-          step: 1,
-          status: "approved",
+          department: "Security",
+          order: 1,
+          status: 'approved',
           approvedAt: "2024-08-10T16:30:00Z",
-          comments: "Thorough assessment. All critical issues have been addressed."
+          comments: "Thorough assessment. All critical issues have been addressed.",
+          viewedDocument: true,
+          downloadedDocument: true,
+          openedInSharePoint: true
         }
-      ]
+      ],
+      requestedBy: "Lisa Garcia",
+      requestedAt: "2024-08-10T15:00:00Z",
+      completedAt: "2024-08-10T16:30:00Z"
     },
     revisionHistory: [
       {
@@ -356,17 +395,26 @@ export const MOCK_DOCUMENTS: Document[] = [
       "automation": "Partial"
     },
     approvalWorkflow: {
-      currentStep: "step-1",
-      status: "pending",
-      approvers: [
+      id: "workflow_006",
+      currentStep: 1,
+      totalSteps: 1,
+      overallStatus: 'pending',
+      steps: [
         {
-          id: "ap-006",
+          id: "step_006_1",
+          approverId: "user_910",
           approverName: "Mark Thompson",
           approverEmail: "mark.thompson@techcorp.com",
-          step: 1,
-          status: "pending"
+          department: "QA Team",
+          order: 1,
+          status: 'pending',
+          viewedDocument: false,
+          downloadedDocument: false,
+          openedInSharePoint: false
         }
-      ]
+      ],
+      requestedBy: "Bob Wilson",
+      requestedAt: "2024-08-18T13:00:00Z"
     },
     revisionHistory: [
       {
