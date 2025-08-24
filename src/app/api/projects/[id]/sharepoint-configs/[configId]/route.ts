@@ -109,10 +109,7 @@ async function testSharePointConnection(config: any) {
 }
 
 // GET - Get a specific SharePoint configuration
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; configId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string; configId: string } }) {
   try {
     const user = await verifyToken(request);
     if (!user) {
@@ -156,10 +153,7 @@ export async function GET(
 }
 
 // PUT - Update a SharePoint configuration
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; configId: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; configId: string }> }) {
   try {
     const user = await verifyToken(request);
     if (!user) {
