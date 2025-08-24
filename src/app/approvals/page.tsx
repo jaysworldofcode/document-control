@@ -491,10 +491,10 @@ export default function ApprovalsPage() {
                               Activity Logs
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
+                            {/* <DropdownMenuItem onClick={() => setSendingForApprovalDocument(document)}>
                               <Send className="h-4 w-4 mr-2" />
                               Send for Approval
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                             <DropdownMenuItem onClick={() => handleOpenInSharePoint(document)}>
                               <ExternalLink className="h-4 w-4 mr-2" />
                               Open in SharePoint

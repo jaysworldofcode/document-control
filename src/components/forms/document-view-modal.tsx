@@ -60,6 +60,13 @@ interface ApprovalWorkflow {
     approved_at?: string;
     rejected_at?: string;
     viewed_document: boolean;
+    attachments?: Array<{
+      id: string;
+      file_name: string;
+      file_size: number;
+      file_type: string;
+      download_url?: string;
+    }>;
   }>;
 }
 
@@ -121,7 +128,7 @@ export function DocumentViewModal({
 
           // Load attachments for rejected steps
           if (workflow) {
-            const rejectedStep = workflow.document_approval_steps.find(step => step.status === 'rejected');
+            const rejectedStep = workflow.document_approval_steps.find((step: {status: string}) => step.status === 'rejected');
             if (rejectedStep) {
               const attachmentsResponse = await fetch(`/api/documents/${document.id}/approvals/${rejectedStep.id}/attachments`);
               if (attachmentsResponse.ok) {
@@ -325,8 +332,18 @@ export function DocumentViewModal({
 
   if (!document) return null;
 
-  const statusConfig = DOCUMENT_STATUS_CONFIG[document.status];
-  const fileTypeConfig = FILE_TYPE_CONFIG[document.fileType] || FILE_TYPE_CONFIG.default;
+  // Add fallback for unknown status
+  const statusConfig = DOCUMENT_STATUS_CONFIG[document.status] || {
+    label: document.status || 'Unknown',
+    variant: 'secondary',
+    color: 'gray'
+  };
+  
+  // Handle file type config with proper type checking
+  const fileExt = typeof document.fileType === 'string' ? document.fileType.toLowerCase() : '';
+  const fileTypeConfig = (fileExt && FILE_TYPE_CONFIG[fileExt as keyof typeof FILE_TYPE_CONFIG]) 
+    ? FILE_TYPE_CONFIG[fileExt as keyof typeof FILE_TYPE_CONFIG] 
+    : FILE_TYPE_CONFIG.default;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -340,9 +357,8 @@ export function DocumentViewModal({
               </DialogTitle>
               <div className="flex items-center gap-2 mt-2">
                 <Badge 
-                  variant="outline" 
+                  variant={statusConfig.variant}
                   className="text-xs"
-                  style={{ color: statusConfig.color }}
                 >
                   {statusConfig.label}
                 </Badge>
@@ -402,7 +418,7 @@ export function DocumentViewModal({
               <div className="space-y-6">
                 {/* Rejection Details */}
                 {document.status === 'rejected' && workflow?.document_approval_steps && (() => {
-                  const rejectedStep = workflow.document_approval_steps.find(step => step.status === 'rejected');
+                  const rejectedStep = workflow.document_approval_steps.find((step: {status: string}) => step.status === 'rejected');
                   if (!rejectedStep) return null;
 
                   return (
@@ -444,8 +460,8 @@ export function DocumentViewModal({
                                     size="sm"
                                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                     onClick={() => {
-                                      if (attachment.downloadUrl) {
-                                        window.open(attachment.downloadUrl, '_blank');
+                                      if (attachment.download_url) {
+                                        window.open(attachment.download_url, '_blank');
                                       }
                                     }}
                                   >

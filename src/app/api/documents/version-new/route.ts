@@ -631,6 +631,10 @@ export async function POST(request: NextRequest) {
       .update({ is_current_version: false })
       .eq('document_id', document.id);
     
+    // Extract file extension from filename
+    const fileName = sharePointResult.fileName || file.name;
+    const fileExtension = fileName.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+    
     // Add a version record
     const { data: versionRecord, error: versionError } = await supabase
       .from('document_versions')
@@ -643,9 +647,9 @@ export async function POST(request: NextRequest) {
         sharepoint_path: sharePointResult.sharePointPath,
         sharepoint_id: sharePointResult.sharePointId,
         download_url: sharePointResult.downloadUrl,
-        file_name: sharePointResult.fileName || file.name,
+        file_name: fileName,
         file_size: file.size,
-        file_type: file.type || 'unknown', // Now using TEXT type in migration 025
+        file_type: fileExtension, // Just use the file extension, not the full MIME type
         is_current_version: true
       })
       .select()

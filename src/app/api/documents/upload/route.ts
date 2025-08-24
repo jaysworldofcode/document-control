@@ -553,6 +553,9 @@ export async function POST(request: NextRequest) {
     // Use the first successful upload as the primary record
     const primaryUpload = uploadResults[0];
 
+    // Extract the file extension for cleaner display
+    const fileExtension = file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+    
     // Create the document record in database with primary SharePoint info
     const { data: document, error } = await supabase
       .from('documents')
@@ -560,7 +563,7 @@ export async function POST(request: NextRequest) {
         project_id: projectId,
         title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension for title
         file_name: file.name,
-        file_type: file.name.split('.').pop()?.toLowerCase() || 'unknown',
+        file_type: fileExtension, // Store just the extension in uppercase
         file_size: file.size,
         sharepoint_path: primaryUpload.sharePointPath,
         sharepoint_id: primaryUpload.sharePointId,

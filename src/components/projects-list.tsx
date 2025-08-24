@@ -403,7 +403,7 @@ export function ProjectsList() {
             <div className="mt-4 pt-4 border-t flex items-center justify-between">
               <div className="text-sm">
                 <span className="text-muted-foreground">Budget:</span>
-                <span className="font-medium ml-1">{project.budget}</span>
+                <span className="font-medium ml-1">${project.budget}</span>
               </div>
               <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${project.id}`)}>
                 <Eye className="h-4 w-4 mr-2" />
