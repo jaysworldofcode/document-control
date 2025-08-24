@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
     if (status && status !== 'all') {
       query = query.eq('status', status);
     }
-    if (projectId) {
+    if (projectId && projectId !== 'all') {
       query = query.eq('project_id', projectId);
     }
     if (startDate) {
@@ -121,6 +121,9 @@ export async function GET(request: NextRequest) {
     if (endDate) {
       query = query.lte('uploaded_at', endDate);
     }
+
+    // Filter to show only current user's documents
+    query = query.eq('uploaded_by', user.userId);
 
     // Only show documents from user's organization's projects
     query = query.in('project_id', projectIds.map(p => p.id));
@@ -140,10 +143,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch documents' }, { status: 500 });
     }
 
-    // Get total count
+    // Get total count for current user's documents
     const countResult = await supabase
       .from('documents')
       .select('*', { count: 'exact', head: true })
+      .eq('uploaded_by', user.userId)
       .in('project_id', projectIds.map(p => p.id));
 
     const totalCount = countResult.count || 0;

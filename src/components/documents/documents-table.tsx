@@ -33,6 +33,11 @@ interface DocumentsTableProps {
   className?: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 interface Document {
   id: string;
   name: string;
@@ -55,6 +60,7 @@ interface PaginationInfo {
 export function DocumentsTable({ className }: DocumentsTableProps) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -66,7 +72,7 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
   // Filter states
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState('all');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [sortBy, setSortBy] = useState('uploaded_at');
@@ -80,7 +86,7 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
         pageSize: pagination.pageSize.toString(),
         ...(search && { search }),
         ...(status && { status }),
-        ...(projectId && { projectId }),
+        ...(projectId && projectId !== 'all' && { projectId }),
         ...(startDate && { startDate: startDate.toISOString() }),
         ...(endDate && { endDate: endDate.toISOString() }),
         sortBy,
@@ -107,7 +113,22 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('/api/projects');
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+      
+      const data = await response.json();
+      setProjects(data);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
+
   useEffect(() => {
+    fetchProjects();
     fetchDocuments();
   }, [pagination.page, pagination.pageSize, sortBy, sortOrder]);
 
@@ -119,7 +140,7 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
   const clearFilters = () => {
     setSearch('');
     setStatus('all');
-    setProjectId('');
+    setProjectId('all');
     setStartDate(null);
     setEndDate(null);
     setPagination(prev => ({ ...prev, page: 1 }));
@@ -173,6 +194,20 @@ export function DocumentsTable({ className }: DocumentsTableProps) {
             <SelectItem value="under_review">Under Review</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={projectId} onValueChange={setProjectId}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Project" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Projects</SelectItem>
+            {projects.map((project) => (
+              <SelectItem key={project.id} value={project.id}>
+                {project.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
