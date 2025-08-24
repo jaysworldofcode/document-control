@@ -26,13 +26,39 @@ async function verifyToken(request: NextRequest) {
 }
 
 // Helper function to test SharePoint connection
-async function testSharePointConnection(config: any) {
+async function testSharePointConnection(projectId: string, config: any) {
   try {
-    const tokenUrl = `https://login.microsoftonline.com/${config.tenant_id}/oauth2/v2.0/token`;
+    // Get the organization ID for this project
+    const { data: project } = await supabase
+      .from('projects')
+      .select('organization_id')
+      .eq('id', projectId)
+      .single();
+      
+    if (!project) {
+      return { success: false, message: 'Project not found' };
+    }
+    
+    // Get organization's SharePoint config for auth details
+    const { data: orgConfig } = await supabase
+      .from('sharepoint_configs')
+      .select('tenant_id, client_id, client_secret')
+      .eq('organization_id', project.organization_id)
+      .single();
+      
+    if (!orgConfig) {
+      return { 
+        success: false, 
+        message: 'Organization SharePoint configuration not found. Please set up SharePoint integration at the organization level first.' 
+      };
+    }
+    
+    // Test with organization credentials and project site URL
+    const tokenUrl = `https://login.microsoftonline.com/${orgConfig.tenant_id}/oauth2/v2.0/token`;
     
     const params = new URLSearchParams({
-      client_id: config.client_id,
-      client_secret: config.client_secret,
+      client_id: orgConfig.client_id,
+      client_secret: orgConfig.client_secret,
       scope: 'https://graph.microsoft.com/.default',
       grant_type: 'client_credentials',
     });
@@ -157,9 +183,6 @@ export async function POST(
     const {
       name,
       description,
-      tenant_id,
-      client_id,
-      client_secret,
       site_url,
       document_library,
       folder_path,
@@ -169,9 +192,9 @@ export async function POST(
     } = body;
 
     // Validate required fields
-    if (!name || !tenant_id || !client_id || !client_secret || !site_url) {
+    if (!name || !site_url) {
       return NextResponse.json({ 
-        error: 'Name, tenant ID, client ID, client secret, and site URL are required' 
+        error: 'Name and site URL are required' 
       }, { status: 400 });
     }
 
@@ -197,14 +220,26 @@ export async function POST(
     if (!project) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
+    
+    // Check if organization has SharePoint config
+    const { data: orgConfig } = await supabase
+      .from('sharepoint_configs')
+      .select('*')
+      .eq('organization_id', userData.organization_id)
+      .single();
+      
+    if (!orgConfig) {
+      return NextResponse.json({ 
+        error: 'Organization SharePoint configuration not found', 
+        message: 'Please set up SharePoint integration at the organization level first.' 
+      }, { status: 400 });
+    }
 
     // Test connection before saving
-    const testResult = await testSharePointConnection({
-      tenant_id,
-      client_id,
-      client_secret,
-      site_url
-    });
+    const testResult = await testSharePointConnection(
+      projectId,
+      { site_url }
+    );
 
     if (!testResult.success) {
       return NextResponse.json({ 
@@ -213,16 +248,13 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Create the configuration
+    // Create the configuration - without auth details
     const { data: config, error } = await supabase
       .from('project_sharepoint_configs')
       .insert({
         project_id: projectId,
         name,
         description: description || '',
-        tenant_id,
-        client_id,
-        client_secret,
         site_url,
         document_library: document_library || 'Documents',
         folder_path: folder_path || '',

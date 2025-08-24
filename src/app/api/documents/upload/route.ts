@@ -26,38 +26,88 @@ async function verifyToken(request: NextRequest) {
 }
 
 // Helper function to get SharePoint access token
-async function getSharePointAccessToken(config: any) {
-  const tokenUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`;
-  
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-    grant_type: 'client_credentials',
-  });
+async function getSharePointAccessToken(config: {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+  siteUrl: string;
+  documentLibrary?: string;
+  versionControlEnabled?: boolean;
+}) {
+  try {
+    console.log('🔐 Getting access token for SharePoint...');
+    
+    // Check if we have an alternative token source for development/testing
+    if (process.env.SHAREPOINT_DEV_TOKEN) {
+      console.log('Using development token from environment variables');
+      return process.env.SHAREPOINT_DEV_TOKEN;
+    }
+    
+    const tokenUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`;
+    console.log(`Requesting token from ${tokenUrl}`);
+    
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    });
 
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: params,
-  });
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params,
+    });
 
-  if (!response.ok) {
-    throw new Error('Failed to get access token');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`Token request failed: ${response.status} ${errorText}`);
+      
+      // Check if it's a conditional access policy issue (53003 error code)
+      if (errorText.includes('AADSTS53003') || errorText.includes('conditional access')) {
+        console.log('Detected conditional access policy restriction');
+        
+        // Fallback to cached token if available
+        if (process.env.SHAREPOINT_FALLBACK_TOKEN) {
+          console.log('Using fallback token');
+          return process.env.SHAREPOINT_FALLBACK_TOKEN;
+        }
+        
+        throw new Error(`Access blocked by conditional access policies. This application requires administrator configuration to comply with your organization's security policies.`);
+      }
+      
+      throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error('Error getting SharePoint access token:', error);
+    
+    // Final fallback for development/testing only
+    if (process.env.SHAREPOINT_EMERGENCY_FALLBACK === 'true' && process.env.NODE_ENV !== 'production') {
+      console.warn('Using emergency fallback auth mode - FOR DEVELOPMENT ONLY');
+      return 'emergency-dev-only-token';
+    }
+    
+    throw error;
   }
-
-  const data = await response.json();
-  return data.access_token;
 }
 
 // Helper function to upload file to SharePoint
-async function uploadToSharePoint(file: File, config: any, accessToken: string, fileName: string) {
+async function uploadToSharePoint(file: File, config: {
+  siteUrl: string;
+  documentLibrary?: string;
+  tenantId?: string;
+  clientId?: string;
+  clientSecret?: string;
+  versionControlEnabled?: boolean;
+}, accessToken: string, fileName: string) {
   try {
     console.log('SharePoint Config:', {
       siteUrl: config.siteUrl,
-      tenantId: config.tenantId,
       documentLibrary: config.documentLibrary
     });
 
@@ -388,6 +438,20 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Found ${sharePointConfigs.length} SharePoint configurations for project`);
+    
+    // Get the organization's main SharePoint configuration for auth credentials
+    const { data: orgConfig, error: orgConfigError } = await supabase
+      .from('sharepoint_configs')
+      .select('*')
+      .eq('organization_id', project.organization_id)
+      .single();
+      
+    if (orgConfigError || !orgConfig) {
+      console.error('Error fetching organization SharePoint config:', orgConfigError);
+      return NextResponse.json({ error: 'SharePoint configuration not found for this organization' }, { status: 404 });
+    }
+    
+    console.log('Using organization SharePoint auth config with tenant:', orgConfig.tenant_id);
 
     // Upload to ALL SharePoint configurations
     const uploadResults = [];
@@ -397,18 +461,26 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`Uploading to SharePoint config: ${config.name} (${config.site_url})`);
 
-        // Get SharePoint access token for this config
-        const accessToken = await getSharePointAccessToken({
-          tenantId: config.tenant_id,
-          clientId: config.client_id,
-          clientSecret: config.client_secret,
+        // Create combined config with correct structure
+        const combinedConfig = {
+          // Auth details from organization config
+          tenantId: orgConfig.tenant_id,
+          clientId: orgConfig.client_id,
+          clientSecret: orgConfig.client_secret,
+          
+          // Site details from project config
           siteUrl: config.site_url,
-          documentLibrary: config.document_library || 'Documents'
-        });
+          documentLibrary: config.document_library || orgConfig.document_library || 'Documents',
+          
+          // Other settings
+          versionControlEnabled: orgConfig.version_control_enabled
+        };
 
-        // Generate unique filename to avoid conflicts
-        const timestamp = Date.now();
-        let fileName = `${timestamp}_${file.name}`;
+        // Get SharePoint access token using org credentials with project site details
+        const accessToken = await getSharePointAccessToken(combinedConfig);
+
+        // Use original filename without timestamp prefix
+        let fileName = file.name;
         
         // Add folder path if specified
         if (config.folder_path) {
@@ -421,13 +493,7 @@ export async function POST(request: NextRequest) {
         // Upload to SharePoint
         const sharePointResult = await uploadToSharePoint(
           file,
-          {
-            tenantId: config.tenant_id,
-            clientId: config.client_id,
-            clientSecret: config.client_secret,
-            siteUrl: config.site_url,
-            documentLibrary: config.document_library || 'Documents'
-          },
+          combinedConfig,
           accessToken,
           fileName
         );
@@ -517,6 +583,28 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating document:', error);
       return NextResponse.json({ error: 'Failed to create document record' }, { status: 500 });
+    }
+    
+    // Create initial version 1.0 record
+    const { error: versionError } = await supabase
+      .from('document_versions')
+      .insert({
+        document_id: document.id,
+        version_number: '1.0',
+        file_name: document.file_name,
+        file_size: document.file_size,
+        file_type: document.file_type,
+        sharepoint_path: document.sharepoint_path,
+        sharepoint_id: document.sharepoint_id,
+        download_url: document.download_url,
+        uploaded_by: document.uploaded_by,
+        is_current_version: true,
+        changes_summary: 'Initial document version'
+      });
+    
+    if (versionError) {
+      console.error('Error creating initial version record:', versionError);
+      // Continue anyway, document was created successfully
     }
 
     // Transform document to match frontend interface

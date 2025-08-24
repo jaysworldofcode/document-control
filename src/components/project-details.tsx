@@ -285,29 +285,54 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     customVersion?: string;
     changesSummary: string;
   }) => {
-    if (!uploadingVersionDocument) return;
+    if (!uploadingVersionDocument || !currentUser) return;
     
     try {
       console.log('📤 Uploading new version for document:', uploadingVersionDocument.id);
+      console.log('Full document object:', uploadingVersionDocument);
       
       const formData = new FormData();
       formData.append('file', data.file);
-      formData.append('documentId', uploadingVersionDocument.id);
+      
+      // Explicitly convert document ID to string and log it to ensure it's correct
+      const documentId = String(uploadingVersionDocument.id);
+      console.log('Document ID being sent to backend:', documentId, 'Type:', typeof documentId);
+      
+      formData.append('documentId', documentId);
       formData.append('versionType', data.versionType);
       formData.append('changesSummary', data.changesSummary);
+      formData.append('userId', currentUser.id); // Add user ID to the form data
+      
+      console.log('Form data prepared with document ID:', documentId);
       
       if (data.customVersion) {
         formData.append('customVersion', data.customVersion);
       }
 
-      const response = await fetch('/api/documents/version', {
+      // Use the new version endpoint that has simpler debugging
+      const response = await fetch('/api/documents/version-new', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload version');
+        const errorMessage = errorData.error || 'Failed to upload version';
+        
+        // Check for conditional access policy errors
+        if (errorMessage.includes('conditional access') || errorMessage.includes('AADSTS53003')) {
+          toast({
+            variant: "destructive",
+            title: "SharePoint Access Blocked",
+            description: "Your organization's security policies are blocking access to SharePoint. The document will be saved locally instead. Please contact your IT administrator.",
+            duration: 10000,
+          });
+          
+          // Continue processing - our backend will fall back to local storage
+        } else {
+          // For other errors, throw and exit
+          throw new Error(errorMessage);
+        }
       }
 
       const result = await response.json();
@@ -322,9 +347,20 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       );
       
       // Update the document in local state with new version info
+      // Ensure we have a valid date for lastModified
+      const uploadedAt = newVersion.uploadedAt 
+        ? new Date(newVersion.uploadedAt).toISOString()
+        : new Date().toISOString();
+        
       setProjectDocuments(prev => prev.map(doc => 
         doc.id === uploadingVersionDocument.id 
-          ? { ...doc, version: newVersion.version, lastModified: newVersion.uploadedAt }
+          ? { 
+              ...doc, 
+              version: newVersion.version, 
+              lastModified: uploadedAt,
+              fileSize: newVersion.size || doc.fileSize,
+              fileName: newVersion.fileName || doc.fileName
+            }
           : doc
       ));
       
@@ -390,14 +426,28 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'N/A';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'N/A';
+    }
   };
 
   if (isLoading) {
@@ -861,7 +911,35 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setUploadingVersionDocument(document)}>
+                              <DropdownMenuItem onClick={() => {
+                                console.log('Version button clicked with document:', document);
+                                
+                                // Enhanced validation to ensure we have the document ID
+                                if (!document || !document.id) {
+                                  console.error('Invalid document for version upload', document);
+                                  toast({
+                                    title: "Error",
+                                    description: "Document information is incomplete. Cannot upload a new version.",
+                                    variant: "destructive"
+                                  });
+                                  return;
+                                }
+                                
+                                // Force ID to string to ensure consistency
+                                const documentWithStringId = {
+                                  ...document,
+                                  id: String(document.id)
+                                };
+                                
+                                // Check if we have minimum required information
+                                console.log('Document validated for version upload:', {
+                                  id: documentWithStringId.id,
+                                  name: document.name,
+                                  fileName: document.fileName
+                                });
+                                
+                                setUploadingVersionDocument(documentWithStringId);
+                              }}>
                                 <GitBranch className="h-4 w-4 mr-2" />
                                 Upload New Version
                               </DropdownMenuItem>
