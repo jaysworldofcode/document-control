@@ -21,13 +21,13 @@ export function ChatToggleButton({
   if (isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      <Button
+    <div className="fixed bottom-0 right-8 z-50">
+      <div
         onClick={onToggle}
-        className="h-12 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+        className="p-2 pl-4 pr-4 min-w-[200px] rounded-tl-lg cursor-pointer rounded-tr-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
       >
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="w-full">
+          {/* <div className="relative">
             <MessageCircle className="h-5 w-5" />
             {unreadCount > 0 && (
               <Badge 
@@ -37,13 +37,14 @@ export function ChatToggleButton({
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Badge>
             )}
-          </div>
-          <div className="hidden md:block">
+          </div> */}
+          <div className="flex items-center">
+            <span className="text-sm font-medium mr-2">👋</span>
             <div className="text-sm font-medium">Project Chat</div>
-            <div className="text-xs opacity-90">{projectName}</div>
+            {/* <div className="text-xs opacity-90">{projectName}</div> */}
           </div>
         </div>
-      </Button>
+      </div>
     </div>
   );
 }

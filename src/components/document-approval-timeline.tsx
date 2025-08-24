@@ -86,7 +86,7 @@ export function DocumentApprovalTimeline({ workflow }: DocumentApprovalTimelineP
       {/* Timeline */}
       <div className="relative">
         {/* Vertical line connecting steps */}
-        <div className="absolute left-6 top-8 bottom-8 w-[2px] bg-gray-200" />
+        <div className="absolute left-6 top-8 bottom-8 w-[2px" />
 
         {/* Steps */}
         <div className="space-y-8">

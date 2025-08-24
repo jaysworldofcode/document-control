@@ -94,7 +94,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [uploadingVersionDocument, setUploadingVersionDocument] = useState<Document | null>(null);
   const [logsDocument, setLogsDocument] = useState<Document | null>(null);
   const [sendingForApprovalDocument, setSendingForApprovalDocument] = useState<Document | null>(null);
-  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [isChatVisible, setIsChatVisible] = useState(true);
   const [chatUnreadCount, setChatUnreadCount] = useState(3); // Mock unread count
   
   // Data state
@@ -1045,7 +1045,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       )}
 
       {/* Chat Toggle Button */}
-      {currentUser && (
+      {/* {currentUser && (
         <ChatToggleButton
           isVisible={isChatVisible}
           unreadCount={chatUnreadCount}
@@ -1055,7 +1055,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           }}
           projectName={project?.name || "Project"}
         />
-      )}
+      )} */}
     </div>
   );
 }

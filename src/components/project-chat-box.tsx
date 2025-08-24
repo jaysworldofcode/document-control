@@ -379,9 +379,9 @@ export function ProjectChatBox({
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                   <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
-                  <span>•</span>
+                  {/* <span>•</span>
                   <Users className="h-3 w-3" />
-                  <span>{getOnlineCount()} online</span>
+                  <span>{getOnlineCount()} online</span> */}
                 </div>
               </div>
             </div>
@@ -395,14 +395,14 @@ export function ProjectChatBox({
               >
                 {isMinimized ? <Maximize2 className="h-3 w-3" /> : <Minimize2 className="h-3 w-3" />}
               </Button>
-              <Button 
+              {/* <Button 
                 size="icon" 
                 variant="ghost" 
                 className="h-6 w-6"
                 onClick={onToggleVisibility}
               >
                 <X className="h-3 w-3" />
-              </Button>
+              </Button> */}
             </div>
           </div>
         </CardHeader>
@@ -645,7 +645,7 @@ export function ProjectChatBox({
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="border-0 focus-visible:ring-0 shadow-none"
+                    // className="border-0 focus-visible:ring-0 shadow-none"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();

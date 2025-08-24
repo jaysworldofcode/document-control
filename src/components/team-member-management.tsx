@@ -279,13 +279,9 @@ export function TeamMemberManagement({
       <Card>
         <CardHeader>
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5" />
+            <CardTitle className="flex items-center">
               Project Managers
             </CardTitle>
-            <CardDescription>
-              People responsible for managing this project
-            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -326,10 +322,6 @@ export function TeamMemberManagement({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Team Members ({teamMembers.length})
-              </CardTitle>
               <CardDescription>
                 Manage project team members and their access
               </CardDescription>
