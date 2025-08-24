@@ -130,13 +130,14 @@ export function ProjectsList() {
         ...data,
         managerIds: data.managers.map(m => m.id),
         teamIds: [], // Add team support later if needed
-        sharePointSiteUrl: data.sharePointSiteUrl,
-        sharePointDocumentLibrary: data.sharePointDocumentLibrary,
-        sharePointFolderPath: data.sharePointFolderPath,
-        sharePointFolderId: data.sharePointFolderId,
-        sharePointExcelPath: data.sharePointExcelPath,
-        sharePointExcelId: data.sharePointExcelId,
-        enableExcelLogging: data.enableExcelLogging
+        // Use the first SharePoint config if available
+        ...(data.sharePointConfigs && data.sharePointConfigs[0] ? {
+          sharePointSiteUrl: data.sharePointConfigs[0].siteUrl,
+          sharePointDocumentLibrary: data.sharePointConfigs[0].documentLibrary,
+          sharePointFolderPath: data.sharePointConfigs[0].folderPath || '',
+          sharePointExcelPath: data.sharePointConfigs[0].excelPath || '',
+          enableExcelLogging: data.sharePointConfigs[0].enableExcelLogging
+        } : {})
       };
       
       await createProject(apiData);
@@ -156,11 +157,14 @@ export function ProjectsList() {
         ...data,
         managerIds: data.managers.map(m => m.id),
         teamIds: [], // Add team support later if needed
-        sharePointFolderPath: data.sharePointFolderPath,
-        sharePointFolderId: data.sharePointFolderId,
-        sharePointExcelPath: data.sharePointExcelPath,
-        sharePointExcelId: data.sharePointExcelId,
-        enableExcelLogging: data.enableExcelLogging
+        // Use the first SharePoint config if available
+        ...(data.sharePointConfigs && data.sharePointConfigs[0] ? {
+          sharePointSiteUrl: data.sharePointConfigs[0].siteUrl,
+          sharePointDocumentLibrary: data.sharePointConfigs[0].documentLibrary,
+          sharePointFolderPath: data.sharePointConfigs[0].folderPath || '',
+          sharePointExcelPath: data.sharePointConfigs[0].excelPath || '',
+          enableExcelLogging: data.sharePointConfigs[0].enableExcelLogging
+        } : {})
       };
       
       await updateProject(editingProject, apiData);
@@ -347,10 +351,10 @@ export function ProjectsList() {
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setEditingProject(project.id)}>
+                  {/* <DropdownMenuItem onClick={() => setEditingProject(project.id)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Project
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <Archive className="h-4 w-4 mr-2" />
