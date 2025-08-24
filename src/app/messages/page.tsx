@@ -33,6 +33,8 @@ interface User {
   first_name: string;
   last_name: string;
   email: string;
+  avatar_url?: string;
+  avatar_thumbnail_url?: string;
 }
 
 interface Conversation {
@@ -534,6 +536,12 @@ export default function MessagesPage() {
                         onClick={() => startConversation(user)}
                       >
                         <Avatar className="h-8 w-8">
+                          {user.avatar_thumbnail_url && (
+                            <AvatarImage 
+                              src={user.avatar_thumbnail_url} 
+                              alt={`${user.first_name} ${user.last_name}`} 
+                            />
+                          )}
                           <AvatarFallback className="text-xs">
                             {getUserInitials(user)}
                           </AvatarFallback>
@@ -569,6 +577,12 @@ export default function MessagesPage() {
                 >
                   <div className="flex items-start gap-3">
                     <Avatar className="h-10 w-10">
+                      {conversation.user.avatar_thumbnail_url && (
+                        <AvatarImage 
+                          src={conversation.user.avatar_thumbnail_url} 
+                          alt={`${conversation.user.first_name} ${conversation.user.last_name}`} 
+                        />
+                      )}
                       <AvatarFallback>
                         {getUserInitials(conversation.user)}
                       </AvatarFallback>
@@ -617,6 +631,18 @@ export default function MessagesPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
+                      {(() => {
+                        const currentUser = conversations.find(c => c.userId === selectedConversation)?.user ||
+                          availableUsers.find(u => u.id === selectedConversation) ||
+                          { first_name: '', last_name: '', email: '', id: '' };
+                        
+                        return currentUser.avatar_thumbnail_url ? (
+                          <AvatarImage 
+                            src={currentUser.avatar_thumbnail_url} 
+                            alt={`${currentUser.first_name} ${currentUser.last_name}`} 
+                          />
+                        ) : null;
+                      })()}
                       <AvatarFallback>
                         {getUserInitials(
                           conversations.find(c => c.userId === selectedConversation)?.user ||

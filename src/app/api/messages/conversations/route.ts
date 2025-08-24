@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
         read_at,
         sender_id,
         recipient_id,
-        sender:sender_id(id, first_name, last_name, email),
-        recipient:recipient_id(id, first_name, last_name, email)
+        sender:sender_id(id, first_name, last_name, email, avatar_url, avatar_thumbnail_url),
+        recipient:recipient_id(id, first_name, last_name, email, avatar_url, avatar_thumbnail_url)
       `)
       .or(`sender_id.eq.${user.userId},recipient_id.eq.${user.userId}`)
       .order('sent_at', { ascending: false });

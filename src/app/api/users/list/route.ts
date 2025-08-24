@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // Fetch all users in the same organization
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, first_name, last_name, email, role')
+      .select('id, first_name, last_name, email, role, avatar_url, avatar_thumbnail_url')
       .eq('organization_id', userData.organization_id)
       .order('first_name', { ascending: true });
 
@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
       last_name: user.last_name || '',
       email: user.email || '',
       role: user.role || '',
+      avatar_url: user.avatar_url || null,
+      avatar_thumbnail_url: user.avatar_thumbnail_url || null,
       name: `${user.first_name || ''} ${user.last_name || ''}`.trim()
     })) || [];
 
