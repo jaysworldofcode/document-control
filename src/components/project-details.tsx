@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,6 +104,18 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [teamMembersCount, setTeamMembersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Project statistics
+  const [projectStats, setProjectStats] = useState({
+    totalDocuments: 0,
+    pendingReview: 0,
+    progress: 0,
+    teamSize: {
+      managers: 0,
+      members: 0
+    }
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   // Current user from auth context
   const currentUser = user ? {
@@ -146,6 +159,21 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           setTeamMembersCount(teamData.length);
         } else {
           setTeamMembersCount(0);
+        }
+        
+        // Fetch project statistics
+        setStatsLoading(true);
+        try {
+          const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            setProjectStats(statsData);
+          }
+        } catch (statsError) {
+          console.error('Error fetching project statistics:', statsError);
+          // Don't set main error - stats are supplementary information
+        } finally {
+          setStatsLoading(false);
         }
       } catch (error) {
         console.error('Error fetching project data:', error);
@@ -233,6 +261,17 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         ));
       }
       
+      // Refresh project statistics
+      try {
+        const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setProjectStats(statsData);
+        }
+      } catch (statsError) {
+        console.error('Error refreshing project statistics:', statsError);
+      }
+      
       setSendingForApprovalDocument(null);
     } catch (error) {
       console.error("Failed to send document for approval:", error);
@@ -288,6 +327,17 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           ? { ...doc, version: newVersion.version, lastModified: newVersion.uploadedAt }
           : doc
       ));
+      
+      // Refresh project statistics
+      try {
+        const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setProjectStats(statsData);
+        }
+      } catch (statsError) {
+        console.error('Error refreshing project statistics:', statsError);
+      }
       
       // Show success message
       toast({
@@ -352,10 +402,55 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <Loader2 className="h-16 w-16 animate-spin text-muted-foreground" />
-        <h2 className="text-2xl font-semibold">Loading Project...</h2>
-        <p className="text-muted-foreground">Please wait while we fetch the project data.</p>
+      <div className="space-y-6">
+        {/* Skeleton for project header */}
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-3/4 max-w-md" />
+          <Skeleton className="h-4 w-1/2 max-w-sm" />
+        </div>
+        
+        {/* Skeleton for statistics cards */}
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        {/* Skeleton for project info */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <Skeleton className="h-6 w-36" />
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-24" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-36 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -399,72 +494,14 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         </div>
       </div>
 
-      {/* Project Status Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{documentStats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Documents in project
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {projectDocuments.filter(doc => doc.status === 'pending_review' || doc.status === 'under_review').length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Needs attention
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progress</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{project.progress}%</div>
-            <div className="w-full bg-muted rounded-full h-2 mt-2">
-              <div 
-                className="bg-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${project.progress}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Size</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{project.managers.length + teamMembersCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {project.managers.length} managers, {teamMembersCount} members
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Project header actions */}
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">
-            Documents ({documentStats.total})
+            Documents ({projectStats.totalDocuments || documentStats.total})
           </TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -472,6 +509,91 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {/* Statistics Cards */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            {/* Total Documents Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-16" />
+                ) : (
+                  <div className="text-2xl font-bold">{projectStats.totalDocuments}</div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Documents in project
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Pending Review Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-16" />
+                ) : (
+                  <div className="text-2xl font-bold">{projectStats.pendingReview}</div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Needs attention
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Progress Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Progress</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{projectStats.progress}%</div>
+                    <div className="w-full bg-muted rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${projectStats.progress}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Documents approved
+                  {!statsLoading && projectStats.progress > 0 && 
+                    <span className="block mt-1">{projectDocuments.filter(doc => doc.status === 'approved').length} of {projectStats.totalDocuments}</span>
+                  }
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Team Size Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Team Size</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-16" />
+                ) : (
+                  <div className="text-2xl font-bold">
+                    {project?.managers?.length || projectStats.teamSize.managers} <span className="text-sm font-normal text-muted-foreground">managers,</span> {teamMembersCount || projectStats.teamSize.members} <span className="text-sm font-normal text-muted-foreground">members</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Project Information */}
             <Card className="lg:col-span-2">
@@ -647,7 +769,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             <CardHeader>
               <CardTitle>Documents</CardTitle>
               <CardDescription>
-                All documents in this project ({filteredDocuments.length} of {documentStats.total})
+                All documents in this project ({filteredDocuments.length} of {projectStats.totalDocuments || documentStats.total})
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -665,7 +787,30 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDocuments.map((document) => {
+                  {isLoading ? (
+                    // Skeleton rows when loading
+                    Array.from({length: 5}).map((_, i) => (
+                      <TableRow key={`skeleton-${i}`}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-8 w-8 rounded-md" />
+                            <div className="space-y-1">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-24" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-10" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-8 rounded-full" /></TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    filteredDocuments.map((document) => {
                     const statusConfig = DOCUMENT_STATUS_CONFIG[document.status];
                     const fileConfig = FILE_TYPE_CONFIG[document.fileType as keyof typeof FILE_TYPE_CONFIG] || FILE_TYPE_CONFIG.default;
                     
@@ -748,6 +893,17 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                         : doc
                                     ));
 
+                                    // Refresh project statistics
+                                    try {
+                                      const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+                                      if (statsResponse.ok) {
+                                        const statsData = await statsResponse.json();
+                                        setProjectStats(statsData);
+                                      }
+                                    } catch (statsError) {
+                                      console.error('Error refreshing project statistics:', statsError);
+                                    }
+
                                     toast({
                                       title: "Approval cancelled",
                                       description: "The approval workflow has been cancelled.",
@@ -775,7 +931,53 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                                 Open in SharePoint
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem 
+                                onClick={async () => {
+                                  if (window.confirm('Are you sure you want to delete this document?')) {
+                                    try {
+                                      const response = await fetch(`/api/projects/${projectId}/documents/${document.id}`, {
+                                        method: 'DELETE',
+                                      });
+                                      
+                                      if (response.ok) {
+                                        // Remove from local state
+                                        setProjectDocuments(prev => prev.filter(doc => doc.id !== document.id));
+                                        
+                                        toast({
+                                          title: "Document deleted",
+                                          description: "Document has been deleted successfully",
+                                        });
+                                        
+                                        // Refresh project statistics after deletion
+                                        try {
+                                          const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+                                          if (statsResponse.ok) {
+                                            const statsData = await statsResponse.json();
+                                            setProjectStats(statsData);
+                                          }
+                                        } catch (statsError) {
+                                          console.error('Error refreshing project statistics:', statsError);
+                                        }
+                                      } else {
+                                        const errorData = await response.json();
+                                        toast({
+                                          variant: "destructive",
+                                          title: "Error deleting document",
+                                          description: errorData.message || "An error occurred while deleting the document",
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error('Error deleting document:', error);
+                                      toast({
+                                        variant: "destructive",
+                                        title: "Error deleting document",
+                                        description: "An error occurred while deleting the document",
+                                      });
+                                    }
+                                  }
+                                }}
+                                className="text-destructive"
+                              >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete
                               </DropdownMenuItem>
@@ -784,11 +986,12 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                         </TableCell>
                       </TableRow>
                     );
-                  })}
+                  })
+                  )}
                 </TableBody>
               </Table>
 
-              {filteredDocuments.length === 0 && (
+              {!isLoading && filteredDocuments.length === 0 && (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No documents found</h3>
@@ -933,6 +1136,18 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             // Add the new document to the local state
             setProjectDocuments(prev => [newDocument, ...prev]);
             
+            // Refresh project statistics
+            try {
+              const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+              if (statsResponse.ok) {
+                const statsData = await statsResponse.json();
+                setProjectStats(statsData);
+              }
+            } catch (statsError) {
+              console.error('Error refreshing project statistics:', statsError);
+              // Don't show an error to the user for this
+            }
+            
             // Show success message
             const uploadCount = result.uploadResults?.length || 1;
             const errorCount = result.uploadErrors?.length || 0;
@@ -975,7 +1190,55 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           onClose={() => setEditingDocument(null)}
           onSubmit={async (data: DocumentUpdateData) => {
             console.log("Updating document:", editingDocument.id, data);
-            // Here you would call the API to update the document
+            
+            try {
+              const response = await fetch(`/api/documents/${editingDocument.id}`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+              });
+              
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update document');
+              }
+              
+              const updatedDocument = await response.json();
+              
+              // Update document in local state
+              setProjectDocuments(prev => prev.map(doc => 
+                doc.id === editingDocument.id
+                  ? { ...doc, ...updatedDocument }
+                  : doc
+              ));
+              
+              // Refresh project statistics
+              try {
+                const statsResponse = await fetch(`/api/projects/${projectId}/statistics`);
+                if (statsResponse.ok) {
+                  const statsData = await statsResponse.json();
+                  setProjectStats(statsData);
+                }
+              } catch (statsError) {
+                console.error('Error refreshing project statistics:', statsError);
+              }
+              
+              toast({
+                title: "Document updated",
+                description: "Document has been updated successfully",
+              });
+              
+            } catch (error) {
+              console.error('Error updating document:', error);
+              toast({
+                variant: "destructive",
+                title: "Error updating document",
+                description: error instanceof Error ? error.message : "An unexpected error occurred",
+              });
+            }
+            
             setEditingDocument(null);
           }}
           document={editingDocument}
