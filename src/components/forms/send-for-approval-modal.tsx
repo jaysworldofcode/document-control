@@ -126,10 +126,10 @@ function SortableApproverItem({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-xs">
+        {/* <Badge variant="outline" className="text-xs">
           <Building className="h-3 w-3 mr-1" />
           {approver.department}
-        </Badge>
+        </Badge> */}
         <Button
           variant="ghost"
           size="sm"

@@ -35,19 +35,15 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate the file
-      const validation = validateImageFile(file);
-      if (!validation.isValid) {
-        toast({
-          variant: "destructive",
-          title: "Invalid file",
-          description: validation.error || "Please select a valid image file.",
-        });
-        return;
-      }
-      
       try {
-        // Compress the image before setting it
+        // Create preview URL immediately for better user experience
+        const previewFromOriginal = URL.createObjectURL(file);
+        setPreviewUrl(previewFromOriginal);
+        
+        // Set the file immediately to prevent null file issues
+        setSelectedFile(file);
+        
+        // Compress the image in background
         const compressedFile = await compressImage(file, {
           maxWidth: 400,
           maxHeight: 400,
@@ -55,9 +51,15 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
           format: 'image/jpeg'
         });
         
+        // Update with compressed file
         setSelectedFile(compressedFile);
-        const url = URL.createObjectURL(compressedFile);
-        setPreviewUrl(url);
+        
+        // Create new preview URL from compressed file
+        const compressedUrl = URL.createObjectURL(compressedFile);
+        
+        // Release the original preview URL only after we have the new one
+        URL.revokeObjectURL(previewFromOriginal);
+        setPreviewUrl(compressedUrl);
         
         // Show compression info
         const originalSize = (file.size / 1024 / 1024).toFixed(2);
@@ -70,10 +72,14 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
         });
       } catch (error) {
         console.error('Image compression failed:', error);
-        // Fallback to original file
+        // Fallback to original file if not already set
         setSelectedFile(file);
-        const url = URL.createObjectURL(file);
-        setPreviewUrl(url);
+        
+        // Make sure we have a preview URL
+        if (!previewUrl) {
+          const url = URL.createObjectURL(file);
+          setPreviewUrl(url);
+        }
         
         toast({
           title: "Compression failed",
@@ -84,7 +90,14 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !previewUrl) return;
+    if (!selectedFile) {
+      toast({
+        variant: "destructive",
+        title: "No image selected",
+        description: "Please select an image to upload",
+      });
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -97,14 +110,16 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        const result = await response.json();
+        throw new Error(result.error || 'Upload failed');
       }
-
+      
       const result = await response.json();
       
-      // Call the callback with the new avatar URL (both full and thumbnail)
-      onAvatarChange?.(result.avatarUrl);
+      // Call the callback with the new avatar URL
+      if (result.avatarUrl && onAvatarChange) {
+        onAvatarChange(result.avatarUrl);
+      }
       
       // Clean up
       setIsDialogOpen(false);
@@ -180,7 +195,9 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
         <Button
           size="icon"
           variant="outline"
-          className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+          className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-background shadow-sm hover:bg-primary-foreground transition-colors"
+          aria-label="Change profile picture"
+          title="Change profile picture"
         >
           <Camera className="h-4 w-4" />
         </Button>
@@ -189,7 +206,8 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
         <DialogHeader>
           <DialogTitle>Update Profile Picture</DialogTitle>
           <DialogDescription>
-            Choose a new profile picture. Recommended size is 400x400px. Maximum file size is 5MB.
+            Choose a new profile picture. Your image will be automatically resized and compressed. 
+            Any image format is supported (JPG, PNG, GIF, etc).
           </DialogDescription>
         </DialogHeader>
 

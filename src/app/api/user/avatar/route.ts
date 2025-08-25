@@ -40,17 +40,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
-    }
-
-    // Validate file size (5MB limit)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
-    }
-
     // Generate unique filename
     const fileExt = file.name.split('.').pop() || 'jpg';
     const timestamp = Date.now();
@@ -82,6 +71,13 @@ export async function POST(request: NextRequest) {
     const { data: urlData } = supabase.storage
       .from('profile-images')
       .getPublicUrl(fileName);
+
+    if (!urlData || !urlData.publicUrl) {
+      console.error('Failed to get public URL for uploaded file');
+      // Try to delete the uploaded file if we can't get a URL
+      await supabase.storage.from('profile-images').remove([fileName]);
+      return NextResponse.json({ error: 'Failed to process uploaded image' }, { status: 500 });
+    }
 
     // Update user's avatar_url in database
     const { error: updateError } = await supabase
@@ -132,6 +128,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Extract filename from URL
+    if (!userData.avatar_url) {
+      return NextResponse.json({ error: 'No avatar found' }, { status: 404 });
+    }
+    
     const urlParts = userData.avatar_url.split('/');
     const fileName = urlParts[urlParts.length - 1];
     const filePath = `${user.userId}/${fileName}`;
