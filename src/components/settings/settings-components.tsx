@@ -252,7 +252,7 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
           </Button>
           <Button 
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={isUploading}
           >
             {isUploading ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
