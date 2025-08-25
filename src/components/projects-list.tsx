@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,10 +200,43 @@ export function ProjectsList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading projects...</span>
+      <div className="flex flex-col space-y-6 min-h-[400px] p-4">
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-1/2" />
+          <Skeleton className="h-4 w-1/4" />
+        </div>
+        
+        <div className="flex flex-col md:flex-row gap-4 items-start">
+          <Skeleton className="h-10 w-full max-w-md" />
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+        
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+              <div className="space-y-2 mb-4">
+                <Skeleton className="h-6 w-3/4" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-16" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-full mb-1" />
+              <Skeleton className="h-4 w-5/6 mb-6" />
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+              <div className="mt-4 pt-4 border-t flex justify-between">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -384,8 +418,8 @@ export function ProjectsList() {
                 {project.managers.length > 1 && (
                   <span className="text-xs bg-muted px-2 py-0.5 rounded">+{project.managers.length - 1} more</span>
                 )}
-                <span>•</span>
-                <span>{project.team.length} members</span>
+                {/* <span>•</span>
+                <span>{project.team.length} members</span> */}
               </div>
               
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -395,7 +429,7 @@ export function ProjectsList() {
               
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                <span>{new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}</span>
+                <span>{new Date(project.startDate).toLocaleDateString()} - {project.endDate? new Date(project.endDate).toLocaleDateString() : "Ongoing"}</span>
               </div>
             </div>
 
