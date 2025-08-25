@@ -59,7 +59,7 @@ export function Header({ className }: HeaderProps) {
 
   return (
     <header className={className}>
-      <div className="flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
+      <div className="flex h-16 items-center justify-between bg-background px-4 lg:px-6">
         {/* Left side - Mobile menu + Logo (hidden on desktop) */}
         <div className="flex items-center gap-4">
           {/* Mobile hamburger menu */}
