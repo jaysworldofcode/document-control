@@ -330,6 +330,8 @@ export function TeamMemberManagement({
             <Button 
               onClick={() => setIsAddMemberOpen(true)}
               disabled={loading || isSubmitting || isLoadingTeam}
+              className="text-xs"
+              size="sm"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Member
@@ -368,7 +370,11 @@ export function TeamMemberManagement({
               <p className="text-muted-foreground mb-4">
                 Add team members to collaborate on this project
               </p>
-              <Button onClick={() => setIsAddMemberOpen(true)}>
+              <Button
+                onClick={() => setIsAddMemberOpen(true)}
+                className="text-xs"
+                size="sm"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Member
               </Button>
