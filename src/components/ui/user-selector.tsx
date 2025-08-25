@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -120,9 +121,10 @@ export function UserSelector({ isOpen, onClose, onSelect, existingManagerIds }: 
           <div className="space-y-2">
             <Label>Select User</Label>
             {loading ? (
-              <div className="flex items-center gap-2 p-3 border rounded">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Loading users...</span>
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
               </div>
             ) : (
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>

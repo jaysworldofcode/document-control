@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -539,9 +540,19 @@ export function ProjectSettings({
         <CardContent className="space-y-4">
           {/* Configuration List */}
           {isLoadingConfigs ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading configurations...</span>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-1/3" />
+                <Skeleton className="h-20 w-full rounded-md" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-1/4" />
+                <Skeleton className="h-20 w-full rounded-md" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-20 w-full rounded-md" />
+              </div>
             </div>
           ) : sharePointConfigs.length > 0 ? (
             <div className="space-y-4">

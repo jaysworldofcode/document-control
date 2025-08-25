@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -186,7 +187,7 @@ export function VersionHistoryModal({
                   <History className="h-5 w-5 text-green-600" />
                 </div>
                 <div className="text-xl font-bold text-green-700">
-                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : versions.length}
+                  {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : versions.length}
                 </div>
                 <div className="text-xs text-green-600 font-medium">Total</div>
               </div>
@@ -235,10 +236,18 @@ export function VersionHistoryModal({
               </div>
 
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                    <span className="text-gray-600">Loading version history...</span>
+                <div className="space-y-6 py-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-2/3 mx-auto" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-1/2 mx-auto" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-3/4 mx-auto" />
+                    <Skeleton className="h-16 w-full" />
                   </div>
                 </div>
               ) : versions.length === 0 ? (
