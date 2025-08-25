@@ -288,7 +288,7 @@ export function TeamMemberManagement({
         <CardContent>
           <div className="space-y-4">
             {managers.map((manager) => (
-              <div key={manager.id} className="flex items-center justify-between p-4 border rounded-lg">
+              <div key={manager.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <UserCheck className="h-5 w-5 text-primary" />
@@ -306,12 +306,12 @@ export function TeamMemberManagement({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* <div className="flex items-center gap-2">
                   <Badge variant="outline">{manager.role}</Badge>
                   {manager.canApproveDocuments && (
                     <Badge variant="outline" className="text-xs">Can Approve</Badge>
                   )}
-                </div>
+                </div> */}
               </div>
             ))}
           </div>
@@ -382,7 +382,7 @@ export function TeamMemberManagement({
           ) : (
             <div className="space-y-4">
               {teamMembers.map((member) => (
-                <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={member.id} className="flex items-center justify-between pl-2 pr-2">
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                       <span className="text-sm font-medium">

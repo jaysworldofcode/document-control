@@ -815,7 +815,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           {/* Status dashboard cards removed - no longer needed */}
 
           {/* Documents Table */}
-          <Card>
+          <Card className='border-0 p-0 shadow-none'>
             <CardHeader>
               <CardTitle>Documents</CardTitle>
               <CardDescription>
@@ -824,7 +824,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             </CardHeader>
             <CardContent>
               <Table>
-                <TableHeader>
+                <TableHeader className='border-b-0'>
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Type</TableHead>
@@ -865,7 +865,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                     const fileConfig = FILE_TYPE_CONFIG[document.fileType as keyof typeof FILE_TYPE_CONFIG] || FILE_TYPE_CONFIG.default;
                     
                     return (
-                      <TableRow key={document.id}>
+                      <TableRow className='border-b-0' key={document.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <span className={`text-lg ${fileConfig.color}`}>

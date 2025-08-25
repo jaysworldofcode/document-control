@@ -370,6 +370,11 @@ export function ProjectsList() {
                 <h3 className="font-semibold capitalize text-lg leading-tight mb-2">
                   {project.name}
                 </h3>
+
+                {/* Project Description */}
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                  {project.description}
+                </p>
                 <div className="flex items-center gap-2 mb-3">
                   <Badge variant={statusConfig[project.status as keyof typeof statusConfig].variant}>
                     {statusConfig[project.status as keyof typeof statusConfig].label}
@@ -411,22 +416,17 @@ export function ProjectsList() {
               </DropdownMenu>
             </div>
 
-            {/* Project Description */}
-            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-              {project.description}
-            </p>
-
             {/* Project Details */}
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
+              {/* <div className="flex items-center gap-2 text-muted-foreground">
                 <Users className="h-4 w-4" />
                 <span>{project.managers.find(m => m.isPrimaryManager)?.name || project.managers[0]?.name}</span>
                 {project.managers.length > 1 && (
                   <span className="text-xs bg-muted px-2 py-0.5 rounded">+{project.managers.length - 1} more</span>
                 )}
-                {/* <span>•</span>
-                <span>{project.team.length} members</span> */}
-              </div>
+                <span>•</span>
+                <span>{project.team.length} members</span>
+              </div> */}
               
               <div className="flex items-center gap-2 text-muted-foreground">
                 <FileText className="h-4 w-4" />
