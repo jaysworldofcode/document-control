@@ -123,6 +123,11 @@ export function useSupabaseRealtimeMessages(currentUserId: string, organizationI
               const sender = senderData as Message['sender'];
               const recipient = recipientData as Message['recipient'];
                 
+              const { data: attachmentsData, error: attachmentsError } = await supabase
+                .from('message_attachments')
+                .select('*')
+                .eq('message_id', payload.new.id);
+              
               const formattedMessage: Message = {
                 id: payload.new.id,
                 sender_id: payload.new.sender_id,
@@ -131,7 +136,8 @@ export function useSupabaseRealtimeMessages(currentUserId: string, organizationI
                 sent_at: payload.new.sent_at,
                 read_at: payload.new.read_at,
                 sender,
-                recipient
+                attachments: attachmentsData || [],
+
               };
               
               newMessageCallbackRef.current(formattedMessage);
