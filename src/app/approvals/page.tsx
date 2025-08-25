@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -341,11 +342,51 @@ export default function ApprovalsPage() {
 
         {/* Documents List */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <Clock className="h-8 w-8 mx-auto mb-2 animate-spin" />
-              <p className="text-muted-foreground">Loading pending approvals...</p>
+          <div className="space-y-6">
+            {/* Skeleton header */}
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-3/4 max-w-md" />
+              <Skeleton className="h-4 w-1/2 max-w-sm" />
             </div>
+            
+            {/* Skeleton search and filter */}
+            <div className="flex flex-col md:flex-row gap-4 items-start">
+              <Skeleton className="h-10 w-full max-w-md" />
+              <Skeleton className="h-10 w-28" />
+            </div>
+            
+            {/* Skeleton results summary */}
+            <Skeleton className="h-5 w-64" />
+            
+            {/* Skeleton document cards */}
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="mb-4">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <Skeleton className="h-12 w-12 rounded-md" />
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-1/3" />
+                        <Skeleton className="h-5 w-24 rounded-full" />
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                      </div>
+                      <div className="flex gap-3">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         ) : error ? (
           <div className="flex items-center justify-center py-12">

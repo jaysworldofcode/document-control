@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -450,8 +451,49 @@ export default function RoleDepartmentPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="space-y-6 p-6">
+          {/* Skeleton page header */}
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-2/3 max-w-md" />
+            <Skeleton className="h-4 w-1/2 max-w-sm" />
+          </div>
+          
+          {/* Skeleton tabs */}
+          <Skeleton className="h-10 w-full max-w-md" />
+          
+          {/* Skeleton tab content */}
+          <Card>
+            <CardHeader className="space-y-2">
+              <Skeleton className="h-7 w-1/3" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Departments tab skeleton */}
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+              
+              {/* Department items skeleton */}
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border p-4 rounded-lg mb-4 space-y-2">
+                  <div className="flex justify-between">
+                    <div className="space-y-1">
+                      <Skeleton className="h-6 w-40" />
+                      <Skeleton className="h-4 w-60" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                    </div>
+                  </div>
+                  <div className="pt-2">
+                    <Skeleton className="h-5 w-24" />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </AppLayout>
     );
@@ -505,7 +547,7 @@ export default function RoleDepartmentPage() {
 
           {/* Departments Tab */}
           <TabsContent value="departments" className="space-y-6">
-            <Card>
+            <Card className="border-0 shadow-none">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -515,6 +557,7 @@ export default function RoleDepartmentPage() {
                   <Button 
                     onClick={() => setIsAddingDepartment(true)}
                     disabled={user.role !== 'owner' && user.role !== 'admin'}
+                    size="sm"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Department
@@ -768,7 +811,7 @@ export default function RoleDepartmentPage() {
 
           {/* Roles Tab */}
           <TabsContent value="roles" className="space-y-6">
-            <Card>
+            <Card className="border-0 shadow-none">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -778,6 +821,8 @@ export default function RoleDepartmentPage() {
                   <Button 
                     onClick={() => setIsAddingRole(true)}
                     disabled={user.role !== 'owner'}
+                    className="text-xs"
+                    size="sm"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Custom Role

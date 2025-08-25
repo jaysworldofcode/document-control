@@ -270,7 +270,11 @@ export function ProjectsList() {
             <ExternalLink className="h-4 w-4 mr-2" />
             Export
           </Button> */}
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="text-xs"
+            size="sm"
+          >
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
@@ -439,7 +443,8 @@ export function ProjectsList() {
                 <span className="text-muted-foreground">Budget:</span>
                 <span className="font-medium ml-1">${project.budget}</span>
               </div>
-              <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${project.id}`)}>
+              <Button
+                variant="outline" size="sm" className="text-xs" onClick={() => router.push(`/projects/${project.id}`)}>
                 <Eye className="h-4 w-4 mr-2" />
                 View
               </Button>
