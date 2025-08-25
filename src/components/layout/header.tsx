@@ -17,6 +17,17 @@ import {
   Settings,
   FileText
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface HeaderProps {
   className?: string;
@@ -24,6 +35,27 @@ interface HeaderProps {
 
 export function Header({ className }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  
+  // Debug info
+  console.log("Auth user in header:", user);
+  
+  // Function to get user initials
+  const getUserInitials = () => {
+    if (!user) return "U";
+    return `${user.firstName?.charAt(0) || ""}${user.lastName?.charAt(0) || ""}`.toUpperCase();
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
 
   return (
     <header className={className}>
@@ -107,7 +139,7 @@ export function Header({ className }: HeaderProps) {
           </Button>
 
           {/* Notifications */}
-          <Button
+          {/* <Button
             variant="outline"
             size="icon"
             className="relative"
@@ -115,17 +147,47 @@ export function Header({ className }: HeaderProps) {
             <Bell className="h-4 w-4" />
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive"></span>
             <span className="sr-only">Notifications</span>
-          </Button>
+          </Button> */}
 
           {/* User menu */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-            >
-              <User className="h-4 w-4" />
-              <span className="sr-only">User menu</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {user?.avatarUrl ? (
+                  <img 
+                    src={user.avatarUrl} 
+                    alt={`${user?.firstName || ''} ${user?.lastName || ''}`} 
+                    className="h-8 w-8 rounded-full object-cover cursor-pointer"
+                  />
+                ) : (
+                  <span className="text-primary-foreground text-sm font-medium cursor-pointer">
+                    {getUserInitials()}
+                  </span>
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col">
+                    <span>{user?.firstName} {user?.lastName}</span>
+                    <span className="text-xs text-muted-foreground">{user?.email}</span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <div className="flex items-center">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

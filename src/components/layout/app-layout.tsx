@@ -19,7 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <Header />
+        <Header className="border-b bg-background" />
 
         {/* Main content */}
         <main className="flex-1 overflow-auto bg-white">

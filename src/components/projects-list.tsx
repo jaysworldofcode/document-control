@@ -29,7 +29,8 @@ import {
   Archive,
   Trash2,
   ExternalLink,
-  Loader2
+  Loader2,
+  ChevronRight
 } from "lucide-react";
 
 // API functions for projects
@@ -360,7 +361,8 @@ export function ProjectsList() {
         {filteredProjects.map((project) => (
           <div
             key={project.id}
-            className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm hover:shadow-md transition-shadow"
+            onClick={() => router.push(`/projects/${project.id}`)}
+            className="cursor-pointer rounded-lg border bg-card p-6 text-card-foreground shadow-sm hover:shadow-md transition-shadow"
           >
             {/* Project Header */}
             <div className="flex items-start justify-between mb-4">
@@ -443,11 +445,10 @@ export function ProjectsList() {
                 <span className="text-muted-foreground">Budget:</span>
                 <span className="font-medium ml-1">${project.budget}</span>
               </div>
-              <Button
-                variant="outline" size="sm" className="text-xs" onClick={() => router.push(`/projects/${project.id}`)}>
-                <Eye className="h-4 w-4 mr-2" />
-                View
-              </Button>
+              <span className="text-gray-400 text-sm flex items-center">
+                Open Project
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </span>
             </div>
           </div>
         ))}
