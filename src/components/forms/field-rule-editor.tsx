@@ -25,6 +25,27 @@ export function FieldRuleEditor({ field, allFields, onUpdate }: FieldRuleEditorP
   const [isRuleEnabled, setIsRuleEnabled] = React.useState<boolean>(!!field.rule);
   const [formula, setFormula] = React.useState<string>(field.rule?.formula || '');
   
+  // Reset the state when the field changes (e.g., after adding a field)
+  React.useEffect(() => {
+    // For any field, load existing rule or create default
+    const defaultRule: FieldRule = { type: 'concatenation', sourceFields: [], formula: '' };
+    setRule(field.rule || defaultRule);
+    
+    // Set enabled based on field.readOnly or field.rule existence
+    const shouldBeEnabled = field.readOnly === true || !!field.rule;
+    setIsRuleEnabled(shouldBeEnabled);
+    
+    // Set formula from the field rule or empty string
+    setFormula(field.rule?.formula || '');
+    
+    console.log('Field rule state reset:', { 
+      id: field.id, 
+      rule: field.rule, 
+      readOnly: field.readOnly,
+      isRuleEnabled: shouldBeEnabled
+    });
+  }, [field.id, field.rule, field.readOnly]);
+  
   // Available source fields (exclude the current field and any fields that depend on this field to prevent circular dependencies)
   const availableSourceFields = React.useMemo(() => {
     // First, check if any field depends on the current field directly or indirectly
@@ -133,12 +154,23 @@ export function FieldRuleEditor({ field, allFields, onUpdate }: FieldRuleEditorP
 
   // Handle enabling/disabling the rule
   const handleRuleToggle = (checked: boolean) => {
+    // Update local state first
     setIsRuleEnabled(checked);
+    
     if (checked) {
+      // When enabling, use the current rule state or initialize a new one
+      const currentRule: FieldRule = { 
+        type: 'concatenation', 
+        sourceFields: rule.sourceFields || [], 
+        formula: formula || '' 
+      };
+      
       // Enable the rule
-      onUpdate(field.id, rule, true);
+      onUpdate(field.id, currentRule, true);
     } else {
-      // Disable the rule
+      // When disabling, reset formula and rule state
+      setFormula('');
+      setRule({ type: 'concatenation', sourceFields: [], formula: '' });
       onUpdate(field.id, undefined, false);
     }
   };

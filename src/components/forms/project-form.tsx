@@ -387,6 +387,12 @@ export function ProjectForm({
       options: '',
       defaultValue: ''
     });
+    
+    // Reset the temporary field rule
+    setTempFieldRule({
+      rule: undefined,
+      readOnly: false
+    });
   };
 
   const handleDeleteCustomField = (fieldId: string) => {
@@ -406,13 +412,22 @@ export function ProjectForm({
         ...prev,
         customFields: prev.customFields.map(field => 
           field.id === fieldId 
-            ? { ...field, rule, readOnly } 
+            ? { 
+                ...field, 
+                rule: rule, 
+                readOnly: readOnly 
+              } 
             : field
         )
       }));
     } else {
       // Store the rule temporarily for a new field being added
-      setTempFieldRule({ rule, readOnly });
+      setTempFieldRule({ 
+        rule: rule, 
+        readOnly: readOnly 
+      });
+      
+      console.log('Setting temp field rule:', { rule, readOnly });
     }
   };
 
@@ -890,6 +905,11 @@ export function ProjectForm({
                               helpText: '',
                               options: '',
                               defaultValue: ''
+                            });
+                            // Reset the temporary field rule when canceling edit
+                            setTempFieldRule({
+                              rule: undefined,
+                              readOnly: false
                             });
                           }}
                         >
