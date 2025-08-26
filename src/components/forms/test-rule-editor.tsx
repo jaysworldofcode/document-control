@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { CustomField, FieldRule } from '@/types/project.types';
 import { FieldRuleEditor } from './field-rule-editor';
