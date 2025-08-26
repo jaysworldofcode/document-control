@@ -32,6 +32,7 @@ import { useState, useEffect } from "react";
 import { DocumentComment, NewCommentData, CommentReaction } from "@/types/comment.types";
 import { DocumentComments } from "@/components/document-comments";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
+import { Project, CustomField } from "@/types/project.types";
 
 interface DocumentViewModalProps {
   isOpen: boolean;
@@ -81,6 +82,8 @@ export function DocumentViewModal({
   const [workflow, setWorkflow] = useState<ApprovalWorkflow | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [loadingProject, setLoadingProject] = useState(false);
 
   // Load current user
   useEffect(() => {
@@ -104,13 +107,14 @@ export function DocumentViewModal({
     }
   }, [isOpen]);
 
-  // Load comments and workflow when document changes
+  // Load comments, workflow and project data when document changes
   useEffect(() => {
     const loadData = async () => {
       if (!document?.id) return;
       
       setLoadingComments(true);
       setLoadingWorkflow(true);
+      setLoadingProject(true);
       
       try {
         // Load comments
@@ -142,11 +146,23 @@ export function DocumentViewModal({
         } else if (workflowResponse.status !== 404) {
           console.error('Failed to load workflow:', await workflowResponse.text());
         }
+
+        // Load project data to get field names
+        if (document.projectId) {
+          const projectResponse = await fetch(`/api/projects/${document.projectId}`);
+          if (projectResponse.ok) {
+            const projectData = await projectResponse.json();
+            setProject(projectData);
+          } else {
+            console.error('Failed to load project data:', await projectResponse.text());
+          }
+        }
       } catch (error) {
         console.error('Failed to load data:', error);
       } finally {
         setLoadingComments(false);
         setLoadingWorkflow(false);
+        setLoadingProject(false);
       }
     };
 
@@ -607,16 +623,50 @@ export function DocumentViewModal({
                       <CardTitle className="text-lg">Data Fields</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        {Object.entries(document.customFieldValues).map(([key, value]) => (
-                          <div key={key}>
-                            <label className="text-sm font-medium text-muted-foreground">
-                              {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
-                            </label>
-                            <p className="text-sm">{String(value)}</p>
-                          </div>
-                        ))}
-                      </div>
+                      {loadingProject ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                          <span>Loading field data...</span>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                          {Object.entries(document.customFieldValues || {}).map(([fieldKey, value]) => {
+                            // Find the field definition from project custom fields
+                            // First try to find by ID, then by name (for backwards compatibility)
+                            let fieldDef = project?.customFields?.find((field: CustomField) => field.id === fieldKey);
+                            if (!fieldDef) {
+                              fieldDef = project?.customFields?.find((field: CustomField) => field.name === fieldKey);
+                            }
+                            
+                            // Debug logging
+                            console.log('Field Key:', fieldKey);
+                            console.log('Project custom fields:', project?.customFields);
+                            console.log('Found field def:', fieldDef);
+                            console.log('Field def label:', fieldDef?.label);
+                            console.log('Field def name:', fieldDef?.name);
+                            
+                            // Determine display label - prioritize label, then name, then fieldKey
+                            const displayLabel = fieldDef?.label && fieldDef.label.trim() !== '' 
+                              ? fieldDef.label 
+                              : fieldDef?.name || fieldKey;
+                            
+                            console.log('Using display label:', displayLabel);
+                            
+                            return (
+                              <div key={fieldKey} className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">
+                                  {displayLabel}
+                                  {fieldDef?.required && <span className="text-destructive ml-1">*</span>}
+                                </label>
+                                <p className="text-sm">{String(value || '')}</p>
+                                {fieldDef?.helpText && (
+                                  <p className="text-xs text-muted-foreground">{fieldDef.helpText}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
