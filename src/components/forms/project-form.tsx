@@ -31,8 +31,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { UserSelector } from "@/components/ui/user-selector";
-import { Project, ProjectFormData, CustomField, CustomFieldFormData, SharePointConfigFormData } from '@/types/project.types';
+import { Project, ProjectFormData, CustomField, CustomFieldFormData, SharePointConfigFormData, FieldRule } from '@/types/project.types';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, CUSTOM_FIELD_TYPES } from '@/types/project.types';
+import { FieldRuleEditor } from './field-rule-editor';
 import { 
   Loader2, 
   AlertCircle, 
@@ -119,6 +120,11 @@ function SortableCustomFieldItem({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="outline">{field.type}</Badge>
             {field.required && <Badge variant="secondary">Required</Badge>}
+            {field.readOnly && field.rule && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                Rule-based
+              </Badge>
+            )}
             <span>({field.name})</span>
           </div>
         </div>
@@ -167,6 +173,12 @@ export function ProjectForm({
     // Multiple SharePoint configurations
     sharePointConfigs: [],
     customFields: []
+  });
+  
+  // Store temporary rule for new field being added
+  const [tempFieldRule, setTempFieldRule] = useState<{rule?: FieldRule, readOnly: boolean}>({
+    rule: undefined,
+    readOnly: false
   });
   
   const [customFieldForm, setCustomFieldForm] = useState<CustomFieldFormData>({
@@ -279,6 +291,9 @@ export function ProjectForm({
       defaultValue: customFieldForm.defaultValue || undefined,
       order: formData.customFields.length + 1,
       isActive: true,
+      // Include any rule that was set during the custom field creation
+      readOnly: tempFieldRule.readOnly,
+      rule: tempFieldRule.rule,
       validation: customFieldForm.type === 'text' ? {
         minLength: customFieldForm.validation?.minLength ? parseInt(customFieldForm.validation.minLength) : undefined,
         maxLength: customFieldForm.validation?.maxLength ? parseInt(customFieldForm.validation.maxLength) : undefined,
@@ -304,6 +319,11 @@ export function ProjectForm({
       helpText: '',
       options: '',
       defaultValue: ''
+    });
+    // Reset the temporary field rule
+    setTempFieldRule({
+      rule: undefined,
+      readOnly: false
     });
     setErrors([]);
   };
@@ -346,7 +366,10 @@ export function ProjectForm({
           placeholder: customFieldForm.placeholder,
           helpText: customFieldForm.helpText,
           options: customFieldForm.type === 'select' ? customFieldForm.options?.split(',').map(o => o.trim()) : undefined,
-          defaultValue: customFieldForm.defaultValue || undefined
+          defaultValue: customFieldForm.defaultValue || undefined,
+          // Preserve rule and readOnly properties
+          rule: field.rule,
+          readOnly: field.readOnly
         };
       }
       return field;
@@ -371,6 +394,26 @@ export function ProjectForm({
       ...prev,
       customFields: prev.customFields.filter(f => f.id !== fieldId)
     }));
+  };
+  
+  const handleFieldRuleUpdate = (fieldId: string, rule: FieldRule | undefined, readOnly: boolean) => {
+    // Check if this is a temp field (being created) or an existing field (being edited)
+    const isExistingField = formData.customFields.some(f => f.id === fieldId);
+    
+    if (isExistingField) {
+      // Update the rule for an existing field
+      setFormData(prev => ({
+        ...prev,
+        customFields: prev.customFields.map(field => 
+          field.id === fieldId 
+            ? { ...field, rule, readOnly } 
+            : field
+        )
+      }));
+    } else {
+      // Store the rule temporarily for a new field being added
+      setTempFieldRule({ rule, readOnly });
+    }
   };
 
   // SharePoint configuration management functions
@@ -937,6 +980,49 @@ export function ProjectForm({
                         onCheckedChange={(checked) => setCustomFieldForm(prev => ({ ...prev, required: !!checked }))}
                       />
                       <Label htmlFor="fieldRequired">Required field</Label>
+                    </div>
+
+                    <div className="mt-4">
+                      <Label className="text-base font-medium mb-2">Auto-Generate Field Value</Label>
+                      <FieldRuleEditor
+                        field={isEditingField 
+                          ? (formData.customFields.find(f => f.id === isEditingField) || {
+                              id: isEditingField,
+                              ...customFieldForm,
+                              isActive: true,
+                              order: 0,
+                              rule: tempFieldRule.rule,
+                              readOnly: tempFieldRule.readOnly
+                            } as CustomField)
+                          : {
+                              id: `temp_${Date.now()}`,
+                              name: customFieldForm.name || '',
+                              label: customFieldForm.label || '',
+                              type: customFieldForm.type,
+                              required: customFieldForm.required,
+                              isActive: true,
+                              order: 0,
+                              rule: tempFieldRule.rule,
+                              readOnly: tempFieldRule.readOnly
+                            } as CustomField
+                        }
+                        allFields={[
+                          ...formData.customFields,
+                          // Include the current field being added if it's not in customFields yet
+                          ...(isEditingField ? [] : [{
+                            id: `temp_${Date.now()}`,
+                            name: customFieldForm.name || '',
+                            label: customFieldForm.label || '',
+                            type: customFieldForm.type,
+                            required: customFieldForm.required,
+                            isActive: true,
+                            order: formData.customFields.length + 1,
+                            rule: undefined,
+                            readOnly: false
+                          } as CustomField])
+                        ]}
+                        onUpdate={handleFieldRuleUpdate}
+                      />
                     </div>
 
                     <Button
