@@ -352,103 +352,123 @@ async function handleSharePointUrl(config: any, accessToken: string, documentDat
 // Helper function to add row to Excel file using file ID
 async function addRowToExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
   try {
-    // Get existing tables
-    const tablesUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/tables`;
+    // Prepare custom field data
+    const customFields = documentData.projectCustomFields || [];
+    const customFieldValues = documentData.customFieldValues || {};
     
-    console.log('Fetching tables from:', tablesUrl);
+    console.log('Debug - Custom fields from project:', JSON.stringify(customFields, null, 2));
+    console.log('Debug - Custom field values from form:', customFieldValues);
+    console.log('Debug - Available form field keys:', Object.keys(customFieldValues));
     
-    const tablesResponse = await fetch(tablesUrl, {
+    // Create row data based on custom field values only
+    const rowData = customFields.map((field: any, index: number) => {
+      let value = customFieldValues[field.name];
+      console.log(`Debug - Processing field "${field.name}" (type: ${field.type}), value:`, value);
+      
+      // If field name doesn't match, try to find value by index or alternative matching
+      if (value === undefined || value === null) {
+        const formFieldKeys = Object.keys(customFieldValues);
+        console.log(`Debug - Field "${field.name}" not found, trying index ${index} from available keys:`, formFieldKeys);
+        
+        if (formFieldKeys.length > index) {
+          value = customFieldValues[formFieldKeys[index]];
+          console.log(`Debug - Using value from index ${index} (key: ${formFieldKeys[index]}):`, value);
+        }
+      }
+      
+      if (value === undefined || value === null) {
+        console.log(`Debug - Field "${field.name}" has no value, returning empty string`);
+        return '';
+      }
+      
+      // Format the value based on field type
+      switch (field.type) {
+        case 'date':
+          return value ? new Date(value).toISOString().split('T')[0] : '';
+        case 'boolean':
+        case 'checkbox':
+          return value ? 'Yes' : 'No';
+        case 'number':
+          return typeof value === 'number' ? value.toString() : '';
+        default:
+          return value.toString();
+      }
+    });
+    
+    console.log('Custom field row data:', rowData);
+    
+    if (rowData.length === 0) {
+      console.log('No custom fields defined, skipping Excel logging');
+      return;
+    }
+
+    // Find the next empty row and add data directly to worksheet
+    const worksheetUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/usedRange`;
+    
+    console.log('Getting used range from:', worksheetUrl);
+    
+    const usedRangeResponse = await fetch(worksheetUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },
     });
 
-    console.log('Tables response status:', tablesResponse.status);
-
-    let tableId = null;
-    if (tablesResponse.ok) {
-      const tablesData = await tablesResponse.json();
-      console.log('Tables data:', JSON.stringify(tablesData, null, 2));
-      if (tablesData.value && tablesData.value.length > 0) {
-        tableId = tablesData.value[0].id;
-        console.log('Found existing table with ID:', tableId);
+    let nextRow = 1; // Default to first row if no used range
+    
+    if (usedRangeResponse.ok) {
+      const usedRangeData = await usedRangeResponse.json();
+      console.log('Used range data:', JSON.stringify(usedRangeData, null, 2));
+      
+      if (usedRangeData.rowCount && usedRangeData.rowCount > 0) {
+        // The rowIndex is 0-based, so we need to add 1 to get the actual row number
+        // Then add the rowCount to get the next available row
+        const actualStartRow = usedRangeData.rowIndex + 1; // Convert from 0-based to 1-based
+        const usedRowCount = usedRangeData.rowCount;
+        
+        nextRow = actualStartRow + usedRowCount;
+        console.log(`Used range: ${usedRangeData.address}, rowIndex: ${usedRangeData.rowIndex}, rowCount: ${usedRowCount}, actual start row: ${actualStartRow}, next row: ${nextRow}`);
       }
     } else {
-      const errorText = await tablesResponse.text();
-      console.log('Tables response error:', errorText);
+      console.log('No used range found, starting at row 1');
     }
-
-    // If no table exists, create one
-    if (!tableId) {
-      console.log('No table found, creating new table...');
-      const createTableUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/tables/add`;
-      
-      console.log('Creating table at:', createTableUrl);
-      
-      const createTableResponse = await fetch(createTableUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: 'A1:H1',
-          hasHeaders: true,
-          values: [['Document Name', 'File Name', 'File Type', 'File Size', 'Upload Date', 'Uploaded By', 'Project', 'SharePoint Path']]
-        }),
-      });
-
-      console.log('Create table response status:', createTableResponse.status);
-
-      if (createTableResponse.ok) {
-        const tableData = await createTableResponse.json();
-        tableId = tableData.id;
-        console.log('Created new table with ID:', tableId);
-      } else {
-        const errorText = await createTableResponse.text();
-        console.log('Create table error:', errorText);
-      }
-    }
-
-    // Add the document entry
-    if (tableId) {
-      const addRowUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/tables('${tableId}')/rows/add`;
-      
-      console.log('Adding row to table at:', addRowUrl);
-      
-      const rowData = [
-        documentData.title,
-        documentData.fileName,
-        documentData.fileType,
-        formatBytes(documentData.fileSize),
-        new Date().toISOString().split('T')[0], // Date only
-        documentData.uploadedBy,
-        documentData.projectName,
-        documentData.sharePointPath
-      ];
-
-      const addRowResponse = await fetch(addRowUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          values: [rowData],
-        }),
-      });
-      
-      console.log('Add row response status:', addRowResponse.status);
-      
-      if (addRowResponse.ok) {
-        console.log('Successfully added row to Excel table');
-      } else {
-        const errorText = await addRowResponse.text();
-        console.log('Add row error:', errorText);
-      }
+    
+    console.log('Next available row:', nextRow);
+    
+    // Calculate the range for the new row
+    const startColumn = 'A';
+    const endColumn = String.fromCharCode(64 + rowData.length); // A=65, so 64+1=A, 64+2=B, etc.
+    const range = `${startColumn}${nextRow}:${endColumn}${nextRow}`;
+    
+    console.log('Target range:', range);
+    
+    // Add data directly to the worksheet range
+    const updateRangeUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/range(address='${range}')`;
+    
+    console.log('Updating range at:', updateRangeUrl);
+    console.log('Sending data to Excel:', JSON.stringify({ values: [rowData] }, null, 2));
+    
+    const updateResponse = await fetch(updateRangeUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [rowData]
+      }),
+    });
+    
+    console.log('Update range response status:', updateResponse.status);
+    
+    if (updateResponse.ok) {
+      const responseData = await updateResponse.json();
+      console.log('Excel update response data:', JSON.stringify(responseData, null, 2));
+      console.log('Successfully added row to Excel worksheet');
     } else {
-      console.log('No table ID found, could not add row to Excel');
+      const errorText = await updateResponse.text();
+      console.log('Update range error:', errorText);
     }
+    
   } catch (error) {
     console.error('Error adding row to Excel file:', error);
   }
@@ -466,6 +486,56 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
 
     if (!config.isExcelLoggingEnabled || !config.excelSheetPath) {
       console.log('Excel logging disabled or no sheet path provided');
+      return;
+    }
+
+    // Prepare custom field data
+    const customFields = documentData.projectCustomFields || [];
+    const customFieldValues = documentData.customFieldValues || {};
+    
+    console.log('Debug - Custom fields from project:', JSON.stringify(customFields, null, 2));
+    console.log('Debug - Custom field values from form:', customFieldValues);
+    console.log('Debug - Available form field keys:', Object.keys(customFieldValues));
+    
+    // Create row data based on custom field values
+    const rowData = customFields.map((field: any, index: number) => {
+      let value = customFieldValues[field.name];
+      console.log(`Debug - Processing field "${field.name}" (type: ${field.type}), value:`, value);
+      
+      // If field name doesn't match, try to find value by index or alternative matching
+      if (value === undefined || value === null) {
+        const formFieldKeys = Object.keys(customFieldValues);
+        console.log(`Debug - Field "${field.name}" not found, trying index ${index} from available keys:`, formFieldKeys);
+        
+        if (formFieldKeys.length > index) {
+          value = customFieldValues[formFieldKeys[index]];
+          console.log(`Debug - Using value from index ${index} (key: ${formFieldKeys[index]}):`, value);
+        }
+      }
+      
+      if (value === undefined || value === null) {
+        console.log(`Debug - Field "${field.name}" has no value, returning empty string`);
+        return '';
+      }
+      
+      // Format the value based on field type
+      switch (field.type) {
+        case 'date':
+          return value ? new Date(value).toISOString().split('T')[0] : '';
+        case 'boolean':
+        case 'checkbox':
+          return value ? 'Yes' : 'No';
+        case 'number':
+          return typeof value === 'number' ? value.toString() : '';
+        default:
+          return value.toString();
+      }
+    });
+    
+    console.log('Custom field row data:', rowData);
+    
+    if (rowData.length === 0) {
+      console.log('No custom fields defined, skipping Excel logging');
       return;
     }
 
@@ -539,84 +609,13 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
       return;
     }
 
-    // Try to get existing tables - use specific drive if provided
-    const tablesUrl = driveId 
-      ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/worksheets('Sheet1')/tables`
-      : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables`;
-    
-    console.log('Fetching tables from:', tablesUrl);
-    
-    const tablesResponse = await fetch(tablesUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+    const fileData = await fileResponse.json();
+    const fileId = fileData.id;
+    const fileDriveId = driveId || fileData.parentReference.driveId;
 
-    let tableId = null;
-    if (tablesResponse.ok) {
-      const tablesData = await tablesResponse.json();
-      if (tablesData.value && tablesData.value.length > 0) {
-        tableId = tablesData.value[0].id;
-      }
-    }
+    console.log('Found Excel file with ID:', fileId, 'in drive:', fileDriveId);
 
-    // If no table exists, create one
-    if (!tableId) {
-      const createTableUrl = driveId 
-        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/worksheets('Sheet1')/tables/add`
-        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables/add`;
-      
-      console.log('Creating table at:', createTableUrl);
-      
-      const createTableResponse = await fetch(createTableUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: 'A1:H1',
-          hasHeaders: true,
-          values: [['Document Name', 'File Name', 'File Type', 'File Size', 'Upload Date', 'Uploaded By', 'Project', 'SharePoint Path']]
-        }),
-      });
-
-      if (createTableResponse.ok) {
-        const tableData = await createTableResponse.json();
-        tableId = tableData.id;
-      }
-    }
-
-    // Add the document entry
-    if (tableId) {
-      const addRowUrl = driveId 
-        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/tables('${tableId}')/rows/add`
-        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/tables('${tableId}')/rows/add`;
-      
-      console.log('Adding row to table at:', addRowUrl);
-      
-      const rowData = [
-        documentData.title,
-        documentData.fileName,
-        documentData.fileType,
-        formatBytes(documentData.fileSize),
-        new Date().toISOString().split('T')[0], // Date only
-        documentData.uploadedBy,
-        documentData.projectName,
-        documentData.sharePointPath
-      ];
-
-      await fetch(addRowUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          values: [rowData],
-        }),
-      });
-    }
+    await addRowToExcelFile(accessToken, fileDriveId, fileId, documentData);
   } catch (error) {
     console.error('Excel logging error:', error);
     // Don't throw here - Excel logging is optional
@@ -672,7 +671,7 @@ export async function POST(request: NextRequest) {
     // Verify project exists and user has access
     const { data: project } = await supabase
       .from('projects')
-      .select('id, organization_id, name')
+      .select('id, organization_id, name, custom_fields')
       .eq('id', projectId)
       .eq('organization_id', userData.organization_id)
       .single();
@@ -785,7 +784,9 @@ export async function POST(request: NextRequest) {
               uploadedBy: `${userData.first_name} ${userData.last_name}`,
               projectName: project.name,
               sharePointPath: sharePointResult.sharePointPath,
-              configName: config.name
+              configName: config.name,
+              customFieldValues: customFieldValues ? JSON.parse(customFieldValues) : {},
+              projectCustomFields: project.custom_fields || []
             },
             sharePointResult.driveId  // Pass the drive ID
           );
