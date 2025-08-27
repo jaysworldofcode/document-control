@@ -1,0 +1,2 @@
+- Don't use RLS or supabase function so the next developer can easily debug the code
+- Work all backend logic on API
