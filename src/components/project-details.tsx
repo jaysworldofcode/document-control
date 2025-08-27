@@ -71,7 +71,7 @@ import { SendForApprovalModal } from "@/components/forms/send-for-approval-modal
 import { UploadVersionModal } from "@/components/forms/upload-version-modal";
 import { TeamMemberManagement } from "@/components/team-member-management";
 import { ProjectSettings } from "@/components/project-settings";
-import { ProjectChatBox } from "@/components/project-chat-box";
+import { ProjectChatBox } from "@/components/project-chat-box-clean";
 import { ChatToggleButton } from "@/components/chat-toggle-button";
 import { useAuth } from "@/contexts/AuthContext";
 import { documentLogging } from "@/utils/document-logging";

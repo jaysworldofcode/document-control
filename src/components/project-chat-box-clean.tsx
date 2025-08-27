@@ -27,8 +27,6 @@ import {
   File,
   Download,
   Reply,
-  Heart,
-  ThumbsUp,
   Clock,
   CheckCheck
 } from "lucide-react";
@@ -56,7 +54,8 @@ export function ProjectChatBox({
   isVisible,
   onToggleVisibility
 }: ProjectChatBoxProps) {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true); // Start minimized by default
+  const [isExpanded, setIsExpanded] = useState(false); // Track if chat was ever expanded
   const [newMessage, setNewMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [participants, setParticipants] = useState<ChatParticipant[]>([]);
@@ -68,14 +67,14 @@ export function ProjectChatBox({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize Supabase realtime chat
+  // Only initialize Supabase realtime chat when expanded
   const { 
     isConnected,
     onNewMessage,
     onMessageUpdate, 
     onMessageDelete,
     onReactionUpdate
-  } = useSupabaseRealtimeChat(projectId);
+  } = useSupabaseRealtimeChat(isExpanded ? projectId : '');
 
   // Initialize user avatars hook
   const { userAvatars, fetchUserAvatars } = useUserAvatars();
@@ -105,8 +104,8 @@ export function ProjectChatBox({
 
   useEffect(() => {
     if (onMessageDelete) {
-      onMessageDelete((deletedMessageId: string) => {
-        setMessages(prev => prev.filter(msg => msg.id !== deletedMessageId));
+      onMessageDelete((messageId: string) => {
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
       });
     }
   }, [onMessageDelete]);
@@ -137,16 +136,39 @@ export function ProjectChatBox({
     }
   }, [onReactionUpdate]);
 
-  // Initial data fetch when chat becomes visible
+  // Initial data fetch when chat becomes visible AND expanded
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && isExpanded) {
       fetchInitialData();
     }
-  }, [isVisible, projectId]);
+  }, [isVisible, isExpanded, projectId]);
+
+  // Handle expanding the chat for the first time
+  const handleExpandChat = () => {
+    setIsMinimized(false);
+    if (!isExpanded) {
+      setIsExpanded(true); // This will trigger the realtime connection and data fetch
+    }
+  };
+
+  // Handle minimizing the chat (keeps connections alive)
+  const handleMinimizeChat = () => {
+    setIsMinimized(true);
+  };
 
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
+      // First, ensure the user is a participant in the chat
+      await fetch('/api/chat/join', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ projectId })
+      });
+
       await Promise.all([
         fetchMessages(),
         fetchParticipants()
@@ -346,6 +368,17 @@ export function ProjectChatBox({
     return participants.filter(p => p.isOnline).length;
   };
 
+  const getReactionEmoji = (reactionType: string): string => {
+    const emojiMap: Record<string, string> = {
+      'like': '👍',
+      'love': '❤️',
+      'laugh': '😂',
+      'angry': '😠',
+      'sad': '😢'
+    };
+    return emojiMap[reactionType] || '👍';
+  };
+
   if (!isVisible) return null;
 
   return (
@@ -358,11 +391,16 @@ export function ProjectChatBox({
               <div>
                 <h3 className="font-semibold text-sm">{projectName}</h3>
                 <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
-                  <span>•</span>
+                  { 
+                    isMinimized? <></>:
+                    <>
+                      <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
+                    </>
+                  }
+                  {/* <span>•</span>
                   <Users className="h-3 w-3" />
-                  <span>{getOnlineCount()} online</span>
+                  <span>{getOnlineCount()} online</span> */}
                 </div>
               </div>
             </div>
@@ -372,18 +410,18 @@ export function ProjectChatBox({
                 size="icon" 
                 variant="ghost" 
                 className="h-6 w-6"
-                onClick={() => setIsMinimized(!isMinimized)}
+                onClick={isMinimized ? handleExpandChat : handleMinimizeChat}
               >
                 {isMinimized ? <Maximize2 className="h-3 w-3" /> : <Minimize2 className="h-3 w-3" />}
               </Button>
-              <Button 
+              {/* <Button 
                 size="icon" 
                 variant="ghost" 
                 className="h-6 w-6"
                 onClick={onToggleVisibility}
               >
                 <X className="h-3 w-3" />
-              </Button>
+              </Button> */}
             </div>
           </div>
         </CardHeader>
@@ -521,22 +559,49 @@ export function ProjectChatBox({
                                 Reply
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleReaction(message.id, 'like')}>
-                                <ThumbsUp className="h-3 w-3 mr-2" />
+                                <span className="mr-2">👍</span>
                                 Like
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleReaction(message.id, 'love')}>
-                                <Heart className="h-3 w-3 mr-2" />
+                                <span className="mr-2">❤️</span>
                                 Love
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'laugh')}>
+                                <span className="mr-2">😂</span>
+                                Laugh
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'angry')}>
+                                <span className="mr-2">😠</span>
+                                Angry
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleReaction(message.id, 'sad')}>
+                                <span className="mr-2">😢</span>
+                                Sad
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                         
                         {message.reactions && message.reactions.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {message.reactions.map((reaction, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs">
-                                {reaction.type} {reaction.userName}
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {/* Group reactions by type */}
+                            {Object.entries(
+                              message.reactions.reduce((acc, reaction) => {
+                                if (!acc[reaction.type]) {
+                                  acc[reaction.type] = [];
+                                }
+                                acc[reaction.type].push(reaction);
+                                return acc;
+                              }, {} as Record<string, ChatReaction[]>)
+                            ).map(([type, reactions]) => (
+                              <Badge 
+                                key={type} 
+                                variant="secondary" 
+                                className="text-xs cursor-pointer hover:bg-gray-200 transition-colors"
+                                onClick={() => handleReaction(message.id, type as ChatReaction['type'])}
+                                title={`${reactions.map(r => r.userName).join(', ')} reacted with ${type}`}
+                              >
+                                {getReactionEmoji(type)} {reactions.length}
                               </Badge>
                             ))}
                           </div>
@@ -599,7 +664,7 @@ export function ProjectChatBox({
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="border-0 focus-visible:ring-0 shadow-none"
+                    // className="border-0 focus-visible:ring-0 shadow-none"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();

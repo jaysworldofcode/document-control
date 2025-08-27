@@ -28,8 +28,12 @@ export function useSupabaseRealtimeChat(projectId: string): UseSupabaseRealtimeC
   const reactionUpdateCallbackRef = useRef<((messageId: string, reactions: ChatReaction[]) => void) | null>(null);
 
   useEffect(() => {
-    // if (!projectId) return;
-    console.log('Trying to connect')
+    if (!projectId) {
+      console.log('No project ID provided, skipping chat connection');
+      return;
+    }
+    
+    console.log('Trying to connect to chat for project:', projectId);
 
     // Create a channel for this project's chat
     const chatChannel = supabase
