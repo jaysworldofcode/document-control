@@ -801,7 +801,7 @@ export function ProjectForm({
 
                         {newSharePointConfig.enableExcelLogging && (
                           <div className="space-y-2">
-                            <Label htmlFor="newConfigExcelPath">Excel Sheet Path</Label>
+                            <Label htmlFor="newConfigExcelPath">Excel Sheet URL</Label>
                             <Input
                               id="newConfigExcelPath"
                               value={newSharePointConfig.excelPath}

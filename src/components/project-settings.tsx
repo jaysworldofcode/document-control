@@ -769,7 +769,7 @@ export function ProjectSettings({
 
             {configFormData.is_excel_logging_enabled && (
               <div className="space-y-2">
-                <Label htmlFor="excelSheetPath">Excel Sheet Path</Label>
+                <Label htmlFor="excelSheetPath">Excel Sheet URL</Label>
                 <Input
                   id="excelSheetPath"
                   value={configFormData.excel_sheet_path}
