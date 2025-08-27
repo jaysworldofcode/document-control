@@ -23,20 +23,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { 
-  Upload,
   X,
   FileText,
   Loader2,
   AlertCircle,
-  History,
-  Info,
-  Clock
+  Info
 } from "lucide-react";
 import { Project, CustomField } from "@/types/project.types";
-import { Document, DocumentStatus, DocumentUploadData } from "@/types/document.types";
-import { DOCUMENT_STATUS_CONFIG } from "@/constants/document.constants";
+import { Document } from "@/types/document.types";
 
 interface EditDocumentModalProps {
   isOpen: boolean;
@@ -48,13 +43,9 @@ interface EditDocumentModalProps {
 }
 
 export interface DocumentUpdateData {
-  file?: File; // Optional - only if uploading new version
   description: string;
   tags: string[];
-  status: DocumentStatus;
   customFieldValues: Record<string, any>;
-  versionNotes: string; // Required when uploading new version
-  isNewVersion: boolean;
 }
 
 export function EditDocumentModal({ 
@@ -65,14 +56,10 @@ export function EditDocumentModal({
   project, 
   loading = false 
 }: EditDocumentModalProps) {
-  const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState(document.description || "");
   const [tags, setTags] = useState<string[]>(document.tags || []);
   const [tagInput, setTagInput] = useState("");
-  const [status, setStatus] = useState<DocumentStatus>(document.status);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>(document.customFieldValues || {});
-  const [versionNotes, setVersionNotes] = useState("");
-  const [isNewVersion, setIsNewVersion] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -144,34 +131,15 @@ export function EditDocumentModal({
     if (document) {
       setDescription(document.description || "");
       setTags(document.tags || []);
-      setStatus(document.status);
       
       // Initialize custom field values and update rule-based fields
       const initialValues = document.customFieldValues || {};
       const valuesWithRules = updateRuleBasedFields(initialValues);
       setCustomFieldValues(valuesWithRules);
       
-      setVersionNotes("");
-      setIsNewVersion(false);
-      setFile(null);
       setErrors([]);
     }
   }, [document, project.customFields]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setIsNewVersion(true);
-      setErrors(errors.filter(e => !e.includes('file')));
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFile(null);
-    setIsNewVersion(false);
-    setVersionNotes("");
-  };
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -301,14 +269,6 @@ export function EditDocumentModal({
   const validateForm = () => {
     const newErrors: string[] = [];
 
-    if (isNewVersion && !file) {
-      newErrors.push('Please select a file for the new version');
-    }
-
-    if (isNewVersion && !versionNotes.trim()) {
-      newErrors.push('Version notes are required when uploading a new version');
-    }
-
     // Validate required custom fields
     project.customFields.forEach(field => {
       if (field.required && !customFieldValues[field.id]) {
@@ -330,13 +290,9 @@ export function EditDocumentModal({
     setIsSubmitting(true);
     try {
       await onSubmit({
-        file: file || undefined,
         description,
         tags,
-        status,
-        customFieldValues,
-        versionNotes,
-        isNewVersion
+        customFieldValues
       });
       
       onClose();
@@ -371,7 +327,7 @@ export function EditDocumentModal({
         <DialogHeader>
           <DialogTitle>Edit Document</DialogTitle>
           <DialogDescription>
-            Update document information and upload new versions
+            Update document information
           </DialogDescription>
         </DialogHeader>
 
@@ -421,99 +377,7 @@ export function EditDocumentModal({
             </div>
           )}
 
-          {/* File Upload for New Version */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>Upload New Version</Label>
-              <Badge variant="outline" className="text-xs">Optional</Badge>
-            </div>
-            
-            {!file ? (
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-                <div className="text-center">
-                  <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                  <div className="mt-2">
-                    <label htmlFor="file" className="cursor-pointer">
-                      <span className="text-sm font-medium text-foreground">
-                        Click to upload new version
-                      </span>
-                      <span className="block text-xs text-muted-foreground mt-1">
-                        Only upload if you want to create a new version
-                      </span>
-                    </label>
-                    <input
-                      id="file"
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileChange}
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">{file.name}</p>
-                    <p className="text-xs text-blue-700">{formatFileSize(file.size)} • New version will be created</p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRemoveFile}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </div>
 
-          {/* Version Notes - Only show if uploading new version */}
-          {isNewVersion && (
-            <div className="space-y-2">
-              <Label htmlFor="versionNotes">Version Notes *</Label>
-              <Textarea
-                id="versionNotes"
-                value={versionNotes}
-                onChange={(e) => setVersionNotes(e.target.value)}
-                placeholder="Describe the changes in this version..."
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                Explain what changed in this version for future reference
-              </p>
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Document Status */}
-          <div className="space-y-2">
-            <Label>Document Status</Label>
-            <Select value={status} onValueChange={(value) => setStatus(value as DocumentStatus)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(DOCUMENT_STATUS_CONFIG).map(([statusKey, config]) => (
-                  <SelectItem key={statusKey} value={statusKey}>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={config.variant} className="text-xs">
-                        {config.label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {config.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Description */}
           <div className="space-y-2">
@@ -583,44 +447,7 @@ export function EditDocumentModal({
             </Card>
           )}
 
-          {/* Version History Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <History className="h-4 w-4" />
-                Recent Version History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {document.revisionHistory.slice(-3).reverse().map((revision) => (
-                  <div key={revision.id} className="flex items-center justify-between text-sm border-l-2 border-muted pl-3">
-                    <div>
-                      <span className="font-medium">v{revision.version}</span>
-                      <span className="text-muted-foreground ml-2">{revision.changes}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(revision.uploadedAt)}
-                    </div>
-                  </div>
-                ))}
-                {isNewVersion && (
-                  <div className="flex items-center justify-between text-sm border-l-2 border-blue-500 pl-3 bg-blue-50 py-1 px-2 rounded">
-                    <div>
-                      <span className="font-medium text-blue-700">
-                        v{parseFloat(document.version) + 0.1} (New)
-                      </span>
-                      <span className="text-blue-600 ml-2">{versionNotes || 'Version notes...'}</span>
-                    </div>
-                    <div className="text-xs text-blue-600">
-                      <Clock className="h-3 w-3 inline mr-1" />
-                      Pending
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+
 
           <DialogFooter>
             <Button 
@@ -638,7 +465,7 @@ export function EditDocumentModal({
               {(isSubmitting || loading) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              {isNewVersion ? 'Upload New Version' : 'Update Document'}
+              Update Document
             </Button>
           </DialogFooter>
         </form>
