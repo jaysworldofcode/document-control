@@ -33,6 +33,7 @@ import { DocumentComment, NewCommentData, CommentReaction } from "@/types/commen
 import { DocumentComments } from "@/components/document-comments";
 import { DOCUMENT_STATUS_CONFIG, FILE_TYPE_CONFIG } from "@/constants/document.constants";
 import { Project, CustomField } from "@/types/project.types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DocumentViewModalProps {
   isOpen: boolean;
@@ -77,35 +78,18 @@ export function DocumentViewModal({
   document,
   onEdit 
 }: DocumentViewModalProps) {
+  const { user } = useAuth();
   const [comments, setComments] = useState<DocumentComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [workflow, setWorkflow] = useState<ApprovalWorkflow | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
 
-  // Load current user
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const userData = await response.json();
-          setCurrentUser({
-            id: userData.user.id,
-            name: userData.user.fullName || userData.user.email
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load current user:', error);
-      }
-    };
-
-    if (isOpen) {
-      loadCurrentUser();
-    }
-  }, [isOpen]);
+  const currentUser = user ? {
+    id: user.id,
+    name: `${user.firstName} ${user.lastName}` || user.email
+  } : null;
 
   // Load comments, workflow and project data when document changes
   useEffect(() => {
