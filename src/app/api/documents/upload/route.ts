@@ -356,28 +356,20 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
     const customFields = documentData.projectCustomFields || [];
     const customFieldValues = documentData.customFieldValues || {};
     
-    console.log('Debug - Custom fields from project:', JSON.stringify(customFields, null, 2));
-    console.log('Debug - Custom field values from form:', customFieldValues);
-    console.log('Debug - Available form field keys:', Object.keys(customFieldValues));
-    
     // Create row data based on custom field values only
     const rowData = customFields.map((field: any, index: number) => {
       let value = customFieldValues[field.name];
-      console.log(`Debug - Processing field "${field.name}" (type: ${field.type}), value:`, value);
       
       // If field name doesn't match, try to find value by index or alternative matching
       if (value === undefined || value === null) {
         const formFieldKeys = Object.keys(customFieldValues);
-        console.log(`Debug - Field "${field.name}" not found, trying index ${index} from available keys:`, formFieldKeys);
         
         if (formFieldKeys.length > index) {
           value = customFieldValues[formFieldKeys[index]];
-          console.log(`Debug - Using value from index ${index} (key: ${formFieldKeys[index]}):`, value);
         }
       }
       
       if (value === undefined || value === null) {
-        console.log(`Debug - Field "${field.name}" has no value, returning empty string`);
         return '';
       }
       
@@ -395,8 +387,6 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
       }
     });
     
-    console.log('Custom field row data:', rowData);
-    
     if (rowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
       return;
@@ -404,8 +394,6 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
 
     // Find the next empty row and add data directly to worksheet
     const worksheetUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/usedRange`;
-    
-    console.log('Getting used range from:', worksheetUrl);
     
     const usedRangeResponse = await fetch(worksheetUrl, {
       headers: {
@@ -417,7 +405,6 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
     
     if (usedRangeResponse.ok) {
       const usedRangeData = await usedRangeResponse.json();
-      console.log('Used range data:', JSON.stringify(usedRangeData, null, 2));
       
       if (usedRangeData.rowCount && usedRangeData.rowCount > 0) {
         // The rowIndex is 0-based, so we need to add 1 to get the actual row number
@@ -426,10 +413,7 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
         const usedRowCount = usedRangeData.rowCount;
         
         nextRow = actualStartRow + usedRowCount;
-        console.log(`Used range: ${usedRangeData.address}, rowIndex: ${usedRangeData.rowIndex}, rowCount: ${usedRowCount}, actual start row: ${actualStartRow}, next row: ${nextRow}`);
       }
-    } else {
-      console.log('No used range found, starting at row 1');
     }
     
     console.log('Next available row:', nextRow);
@@ -444,9 +428,6 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
     // Add data directly to the worksheet range
     const updateRangeUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/range(address='${range}')`;
     
-    console.log('Updating range at:', updateRangeUrl);
-    console.log('Sending data to Excel:', JSON.stringify({ values: [rowData] }, null, 2));
-    
     const updateResponse = await fetch(updateRangeUrl, {
       method: 'PATCH',
       headers: {
@@ -458,11 +439,7 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
       }),
     });
     
-    console.log('Update range response status:', updateResponse.status);
-    
     if (updateResponse.ok) {
-      const responseData = await updateResponse.json();
-      console.log('Excel update response data:', JSON.stringify(responseData, null, 2));
       console.log('Successfully added row to Excel worksheet');
     } else {
       const errorText = await updateResponse.text();
@@ -493,28 +470,20 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
     const customFields = documentData.projectCustomFields || [];
     const customFieldValues = documentData.customFieldValues || {};
     
-    console.log('Debug - Custom fields from project:', JSON.stringify(customFields, null, 2));
-    console.log('Debug - Custom field values from form:', customFieldValues);
-    console.log('Debug - Available form field keys:', Object.keys(customFieldValues));
-    
     // Create row data based on custom field values
     const rowData = customFields.map((field: any, index: number) => {
       let value = customFieldValues[field.name];
-      console.log(`Debug - Processing field "${field.name}" (type: ${field.type}), value:`, value);
       
       // If field name doesn't match, try to find value by index or alternative matching
       if (value === undefined || value === null) {
         const formFieldKeys = Object.keys(customFieldValues);
-        console.log(`Debug - Field "${field.name}" not found, trying index ${index} from available keys:`, formFieldKeys);
         
         if (formFieldKeys.length > index) {
           value = customFieldValues[formFieldKeys[index]];
-          console.log(`Debug - Using value from index ${index} (key: ${formFieldKeys[index]}):`, value);
         }
       }
       
       if (value === undefined || value === null) {
-        console.log(`Debug - Field "${field.name}" has no value, returning empty string`);
         return '';
       }
       
@@ -531,8 +500,6 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
           return value.toString();
       }
     });
-    
-    console.log('Custom field row data:', rowData);
     
     if (rowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
