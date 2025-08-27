@@ -76,19 +76,87 @@ export function EditDocumentModal({
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Compute values for rule-based fields
+  const computeRuleBasedValue = (field: CustomField, values: Record<string, any>) => {
+    if (!field.rule || !field.readOnly) return values[field.name] || values[field.id];
+    
+    // If formula is present, use it for more complex concatenation
+    if (field.rule.formula) {
+      let result = field.rule.formula;
+      
+      // Replace each field reference with its value
+      project.customFields.forEach(sourceField => {
+        const fieldToken = `{${sourceField.name}}`;
+        const fieldValue = values[sourceField.name] || values[sourceField.id] || '';
+        result = result.replace(new RegExp(fieldToken, 'g'), fieldValue);
+      });
+      
+      return result;
+    }
+    
+    // Fall back to simple concatenation with separator if no formula
+    const { sourceFields, separator } = field.rule;
+    let result = '';
+    
+    sourceFields.forEach((sourceId, index) => {
+      const sourceField = project.customFields.find(f => f.id === sourceId);
+      if (sourceField) {
+        const sourceValue = values[sourceField.name] || values[sourceField.id] || '';
+        
+        if (sourceValue) {
+          if (result && index > 0) {
+            result += separator || '';
+          }
+          result += sourceValue;
+        }
+      }
+    });
+    
+    return result;
+  };
+  
+  // Update rule-based fields whenever source fields change
+  const updateRuleBasedFields = (newValues: Record<string, any>, changedFieldName?: string) => {
+    const updatedValues = { ...newValues };
+    
+    project.customFields.forEach(field => {
+      // Only update auto-generated fields when:
+      // 1. They have a rule defined
+      // 2. The field that changed is one of their source fields OR no specific field was indicated (initial load)
+      if (field.rule && field.readOnly) {
+        const shouldUpdate = !changedFieldName || // Initial load
+          (field.rule.sourceFields.some(sourceId => {
+            const sourceField = project.customFields.find(f => f.id === sourceId);
+            return sourceField?.name === changedFieldName;
+          })); // Source field changed
+        
+        if (shouldUpdate) {
+          updatedValues[field.name] = computeRuleBasedValue(field, updatedValues);
+        }
+      }
+    });
+    
+    return updatedValues;
+  };
+
   // Initialize form data when document changes
   useEffect(() => {
     if (document) {
       setDescription(document.description || "");
       setTags(document.tags || []);
       setStatus(document.status);
-      setCustomFieldValues(document.customFieldValues || {});
+      
+      // Initialize custom field values and update rule-based fields
+      const initialValues = document.customFieldValues || {};
+      const valuesWithRules = updateRuleBasedFields(initialValues);
+      setCustomFieldValues(valuesWithRules);
+      
       setVersionNotes("");
       setIsNewVersion(false);
       setFile(null);
       setErrors([]);
     }
-  }, [document]);
+  }, [document, project.customFields]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -124,17 +192,30 @@ export function EditDocumentModal({
   };
 
   const renderCustomField = (field: CustomField) => {
-    const value = customFieldValues[field.id] || '';
+    // Try to get value by field.id first, then by field.name (for backwards compatibility)
+    const value = customFieldValues[field.id] || customFieldValues[field.name] || '';
+    
+    // Use field.name as the key for storing values (to maintain consistency with existing data)
+    const fieldKey = field.name;
+
+    // Handler to update field value and trigger auto-generation
+    const handleFieldChange = (newValue: string) => {
+      const newValues = {
+        ...customFieldValues,
+        [fieldKey]: newValue
+      };
+      
+      // Update rule-based fields after this field changes
+      const updatedValues = updateRuleBasedFields(newValues, fieldKey);
+      setCustomFieldValues(updatedValues);
+    };
 
     switch (field.type) {
       case 'text':
         return (
           <Input
             value={value}
-            onChange={(e) => setCustomFieldValues({
-              ...customFieldValues,
-              [field.id]: e.target.value
-            })}
+            onChange={(e) => handleFieldChange(e.target.value)}
             placeholder={field.placeholder}
           />
         );
@@ -143,10 +224,7 @@ export function EditDocumentModal({
         return (
           <Textarea
             value={value}
-            onChange={(e) => setCustomFieldValues({
-              ...customFieldValues,
-              [field.id]: e.target.value
-            })}
+            onChange={(e) => handleFieldChange(e.target.value)}
             placeholder={field.placeholder}
             rows={3}
           />
@@ -157,10 +235,7 @@ export function EditDocumentModal({
           <Input
             type="number"
             value={value}
-            onChange={(e) => setCustomFieldValues({
-              ...customFieldValues,
-              [field.id]: e.target.value
-            })}
+            onChange={(e) => handleFieldChange(e.target.value)}
             placeholder={field.placeholder}
           />
         );
@@ -170,10 +245,7 @@ export function EditDocumentModal({
           <Input
             type="date"
             value={value}
-            onChange={(e) => setCustomFieldValues({
-              ...customFieldValues,
-              [field.id]: e.target.value
-            })}
+            onChange={(e) => handleFieldChange(e.target.value)}
           />
         );
 
@@ -181,10 +253,7 @@ export function EditDocumentModal({
         return (
           <Select
             value={value}
-            onValueChange={(newValue) => setCustomFieldValues({
-              ...customFieldValues,
-              [field.id]: newValue
-            })}
+            onValueChange={(newValue) => handleFieldChange(newValue)}
           >
             <SelectTrigger>
               <SelectValue placeholder={field.placeholder} />
@@ -255,6 +324,8 @@ export function EditDocumentModal({
     event.preventDefault();
     
     if (!validateForm()) return;
+
+    console.log("Edit modal submitting with customFieldValues:", customFieldValues);
 
     setIsSubmitting(true);
     try {

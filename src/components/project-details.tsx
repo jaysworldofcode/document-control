@@ -1268,6 +1268,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           onClose={() => setEditingDocument(null)}
           onSubmit={async (data: DocumentUpdateData) => {
             console.log("Updating document:", editingDocument.id, data);
+            console.log("CustomFieldValues being sent:", data.customFieldValues);
             
             try {
               const response = await fetch(`/api/documents/${editingDocument.id}`, {
@@ -1277,6 +1278,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 },
                 body: JSON.stringify(data),
               });
+              
+              console.log("API Response status:", response.status);
               
               if (!response.ok) {
                 const errorData = await response.json();
