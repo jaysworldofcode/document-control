@@ -240,7 +240,9 @@ async function uploadToSharePoint(file: File, config: {
     return {
       sharePointPath: uploadData.webUrl,
       sharePointId: uploadData.id,
-      downloadUrl: uploadData['@microsoft.graph.downloadUrl'] || uploadData.webUrl
+      downloadUrl: uploadData['@microsoft.graph.downloadUrl'] || uploadData.webUrl,
+      driveId: documentDrive.id,
+      driveName: documentDrive.name
     };
   } catch (error) {
     console.error('SharePoint upload error:', error);
@@ -248,13 +250,237 @@ async function uploadToSharePoint(file: File, config: {
   }
 }
 
-// Helper function to log to Excel (if configured)
-async function logToExcel(config: any, accessToken: string, documentData: any) {
+// Helper function to handle SharePoint URLs for Excel logging
+async function handleSharePointUrl(config: any, accessToken: string, documentData: any) {
   try {
+    console.log('Processing SharePoint URL:', config.excelSheetPath);
+    
+    // Extract sourcedoc ID from SharePoint URL
+    const sourcedocMatch = config.excelSheetPath.match(/sourcedoc=([^&]+)/);
+    if (!sourcedocMatch) {
+      console.error('Could not extract sourcedoc from SharePoint URL');
+      return;
+    }
+    
+    let sourcedocId = decodeURIComponent(sourcedocMatch[1]);
+    // Remove the %7B and %7D (URL encoded { and }) if present
+    sourcedocId = sourcedocId.replace(/^%7B|%7D$/g, '').replace(/^{|}$/g, '');
+    
+    console.log('Extracted sourcedoc ID:', sourcedocId);
+    
+    // Use Microsoft Graph to get the file by sourcedoc ID
+    // First, get the site information
+    const hostMatch = config.siteUrl.match(/https?:\/\/([^\/]+)/);
+    const siteUrlMatch = config.siteUrl.match(/\/sites\/([^\/]+)/);
+    
+    if (!hostMatch || !siteUrlMatch) {
+      throw new Error('Invalid SharePoint site URL format');
+    }
+    
+    const hostname = hostMatch[1];
+    const siteName = siteUrlMatch[1];
+    
+    // Get site information
+    const siteInfoUrl = `https://graph.microsoft.com/v1.0/sites/${hostname}:/sites/${siteName}`;
+    const siteResponse = await fetch(siteInfoUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!siteResponse.ok) {
+      throw new Error(`Failed to get site information: ${siteResponse.status}`);
+    }
+
+    const siteData = await siteResponse.json();
+    const siteId = siteData.id;
+    
+    // Search for the file by its ID across all drives in the site
+    const searchUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives`;
+    const drivesResponse = await fetch(searchUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!drivesResponse.ok) {
+      throw new Error(`Failed to get drives: ${drivesResponse.status}`);
+    }
+
+    const drivesData = await drivesResponse.json();
+    
+    // Try to find the file in each drive
+    let fileFound = false;
+    let targetDriveId = null;
+    
+    for (const drive of drivesData.value) {
+      try {
+        const fileUrl = `https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${sourcedocId}`;
+        const fileResponse = await fetch(fileUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        
+        if (fileResponse.ok) {
+          console.log(`Found Excel file in drive: ${drive.name} (${drive.id})`);
+          targetDriveId = drive.id;
+          fileFound = true;
+          break;
+        }
+      } catch (error) {
+        // Continue to next drive
+      }
+    }
+    
+    if (!fileFound) {
+      console.log('Excel file not found in any drive');
+      return;
+    }
+    
+    console.log('Excel file found, proceeding with logging...');
+    
+    // Now proceed with table operations using the file ID
+    await addRowToExcelFile(accessToken, targetDriveId, sourcedocId, documentData);
+    
+  } catch (error) {
+    console.error('Error handling SharePoint URL:', error);
+    // Don't throw here - Excel logging is optional
+  }
+}
+
+// Helper function to add row to Excel file using file ID
+async function addRowToExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
+  try {
+    // Get existing tables
+    const tablesUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/tables`;
+    
+    console.log('Fetching tables from:', tablesUrl);
+    
+    const tablesResponse = await fetch(tablesUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    console.log('Tables response status:', tablesResponse.status);
+
+    let tableId = null;
+    if (tablesResponse.ok) {
+      const tablesData = await tablesResponse.json();
+      console.log('Tables data:', JSON.stringify(tablesData, null, 2));
+      if (tablesData.value && tablesData.value.length > 0) {
+        tableId = tablesData.value[0].id;
+        console.log('Found existing table with ID:', tableId);
+      }
+    } else {
+      const errorText = await tablesResponse.text();
+      console.log('Tables response error:', errorText);
+    }
+
+    // If no table exists, create one
+    if (!tableId) {
+      console.log('No table found, creating new table...');
+      const createTableUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/tables/add`;
+      
+      console.log('Creating table at:', createTableUrl);
+      
+      const createTableResponse = await fetch(createTableUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          address: 'A1:H1',
+          hasHeaders: true,
+          values: [['Document Name', 'File Name', 'File Type', 'File Size', 'Upload Date', 'Uploaded By', 'Project', 'SharePoint Path']]
+        }),
+      });
+
+      console.log('Create table response status:', createTableResponse.status);
+
+      if (createTableResponse.ok) {
+        const tableData = await createTableResponse.json();
+        tableId = tableData.id;
+        console.log('Created new table with ID:', tableId);
+      } else {
+        const errorText = await createTableResponse.text();
+        console.log('Create table error:', errorText);
+      }
+    }
+
+    // Add the document entry
+    if (tableId) {
+      const addRowUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/tables('${tableId}')/rows/add`;
+      
+      console.log('Adding row to table at:', addRowUrl);
+      
+      const rowData = [
+        documentData.title,
+        documentData.fileName,
+        documentData.fileType,
+        formatBytes(documentData.fileSize),
+        new Date().toISOString().split('T')[0], // Date only
+        documentData.uploadedBy,
+        documentData.projectName,
+        documentData.sharePointPath
+      ];
+
+      const addRowResponse = await fetch(addRowUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowData],
+        }),
+      });
+      
+      console.log('Add row response status:', addRowResponse.status);
+      
+      if (addRowResponse.ok) {
+        console.log('Successfully added row to Excel table');
+      } else {
+        const errorText = await addRowResponse.text();
+        console.log('Add row error:', errorText);
+      }
+    } else {
+      console.log('No table ID found, could not add row to Excel');
+    }
+  } catch (error) {
+    console.error('Error adding row to Excel file:', error);
+  }
+}
+
+// Helper function to log to Excel (if configured)
+async function logToExcel(config: any, accessToken: string, documentData: any, driveId?: string) {
+  try {
+    console.log('logToExcel called with config:', {
+      isExcelLoggingEnabled: config.isExcelLoggingEnabled,
+      excelSheetPath: config.excelSheetPath,
+      siteUrl: config.siteUrl,
+      driveId: driveId || 'site default'
+    });
+
     if (!config.isExcelLoggingEnabled || !config.excelSheetPath) {
+      console.log('Excel logging disabled or no sheet path provided');
       return;
     }
 
+    // Check if excelSheetPath is a SharePoint URL or a file path
+    const isSharePointUrl = config.excelSheetPath.startsWith('https://') && 
+                           config.excelSheetPath.includes('sharepoint.com');
+    
+    console.log('Excel path type:', isSharePointUrl ? 'SharePoint URL' : 'File path');
+
+    if (isSharePointUrl) {
+      // Handle SharePoint URL
+      return await handleSharePointUrl(config, accessToken, documentData);
+    }
+
+    // Handle file path (existing logic)
     // Extract hostname and site name
     const hostMatch = config.siteUrl.match(/https?:\/\/([^\/]+)/);
     const siteUrlMatch = config.siteUrl.match(/\/sites\/([^\/]+)/);
@@ -282,8 +508,25 @@ async function logToExcel(config: any, accessToken: string, documentData: any) {
     const siteData = await siteResponse.json();
     const siteId = siteData.id;
 
-    // Check if Excel file exists
-    const excelFileUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}`;
+    // Adjust Excel file path for specific drives
+    let adjustedExcelPath = config.excelSheetPath;
+    if (driveId) {
+      // When using a specific drive, remove the library name prefix if it exists
+      // e.g., "/Engineering/Book.xlsx" becomes "/Book.xlsx" when using Engineering drive
+      const pathSegments = config.excelSheetPath.split('/').filter((s: string) => s);
+      if (pathSegments.length > 1) {
+        // Check if first segment might be a library name, if so remove it
+        adjustedExcelPath = '/' + pathSegments.slice(1).join('/');
+        console.log(`Adjusted Excel path from ${config.excelSheetPath} to ${adjustedExcelPath} for specific drive`);
+      }
+    }
+
+    // Check if Excel file exists - use specific drive if provided, otherwise use site default drive
+    const excelFileUrl = driveId 
+      ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}`
+      : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}`;
+    
+    console.log('Excel file URL:', excelFileUrl);
     
     const fileResponse = await fetch(excelFileUrl, {
       headers: {
@@ -296,8 +539,12 @@ async function logToExcel(config: any, accessToken: string, documentData: any) {
       return;
     }
 
-    // Try to get existing tables
-    const tablesUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables`;
+    // Try to get existing tables - use specific drive if provided
+    const tablesUrl = driveId 
+      ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/worksheets('Sheet1')/tables`
+      : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables`;
+    
+    console.log('Fetching tables from:', tablesUrl);
     
     const tablesResponse = await fetch(tablesUrl, {
       headers: {
@@ -315,7 +562,11 @@ async function logToExcel(config: any, accessToken: string, documentData: any) {
 
     // If no table exists, create one
     if (!tableId) {
-      const createTableUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables/add`;
+      const createTableUrl = driveId 
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/worksheets('Sheet1')/tables/add`
+        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/worksheets('Sheet1')/tables/add`;
+      
+      console.log('Creating table at:', createTableUrl);
       
       const createTableResponse = await fetch(createTableUrl, {
         method: 'POST',
@@ -338,7 +589,11 @@ async function logToExcel(config: any, accessToken: string, documentData: any) {
 
     // Add the document entry
     if (tableId) {
-      const addRowUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/tables('${tableId}')/rows/add`;
+      const addRowUrl = driveId 
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${adjustedExcelPath}:/workbook/tables('${tableId}')/rows/add`
+        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${config.excelSheetPath}:/workbook/tables('${tableId}')/rows/add`;
+      
+      console.log('Adding row to table at:', addRowUrl);
       
       const rowData = [
         documentData.title,
@@ -531,7 +786,8 @@ export async function POST(request: NextRequest) {
               projectName: project.name,
               sharePointPath: sharePointResult.sharePointPath,
               configName: config.name
-            }
+            },
+            sharePointResult.driveId  // Pass the drive ID
           );
         }
       } catch (error) {
