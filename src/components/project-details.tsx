@@ -103,6 +103,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [projectDocuments, setProjectDocuments] = useState<Document[]>([]);
   const [teamMembersCount, setTeamMembersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDocumentsLoading, setIsDocumentsLoading] = useState(false);
+  const [documentsLoaded, setDocumentsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Project statistics
@@ -124,7 +126,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     email: user.email
   } : null;
 
-  // Fetch project data function
+  // Fetch project data function (without documents)
   const fetchProjectData = async () => {
       try {
         setIsLoading(true);
@@ -141,16 +143,6 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         }
         const projectData = await projectResponse.json();
         setProject(projectData);
-
-        // Fetch project documents
-        const documentsResponse = await fetch(`/api/documents?projectId=${projectId}`);
-        if (documentsResponse.ok) {
-          const documentsData = await documentsResponse.json();
-          setProjectDocuments(documentsData);
-        } else {
-          // If documents API fails, just set empty array (documents table might be empty)
-          setProjectDocuments([]);
-        }
 
         // Fetch team members count
         const teamResponse = await fetch(`/api/team?projectId=${projectId}`);
@@ -183,12 +175,46 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       }
   };
 
+  // Fetch documents function (called only when documents tab is active)
+  const fetchDocuments = async () => {
+    if (documentsLoaded) return; // Don't fetch if already loaded
+    
+    try {
+      setIsDocumentsLoading(true);
+      
+      // Fetch project documents
+      const documentsResponse = await fetch(`/api/documents?projectId=${projectId}`);
+      if (documentsResponse.ok) {
+        const documentsData = await documentsResponse.json();
+        setProjectDocuments(documentsData);
+      } else {
+        // If documents API fails, just set empty array (documents table might be empty)
+        setProjectDocuments([]);
+      }
+      
+      setDocumentsLoaded(true);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      // Don't set main error - documents are supplementary
+      setProjectDocuments([]);
+    } finally {
+      setIsDocumentsLoading(false);
+    }
+  };
+
   // Fetch project data on component mount
   useEffect(() => {
     if (projectId) {
       fetchProjectData();
     }
   }, [projectId]);
+
+  // Fetch documents when documents tab becomes active
+  useEffect(() => {
+    if (activeTab === 'documents' && projectId && !documentsLoaded) {
+      fetchDocuments();
+    }
+  }, [activeTab, projectId, documentsLoaded]);
 
   const handleDownloadDocument = async (document: Document) => {
     if (document.sharePointPath) {
@@ -837,7 +863,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {(isLoading || isDocumentsLoading) ? (
                     // Skeleton rows when loading
                     Array.from({length: 5}).map((_, i) => (
                       <TableRow key={`skeleton-${i}`}>
