@@ -349,15 +349,15 @@ async function handleSharePointUrl(config: any, accessToken: string, documentDat
   }
 }
 
-// Helper function to add row to Excel file using file ID
-async function addRowToExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
+// Helper function to find and update existing Excel row by document ID
+async function updateRowInExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
   try {
     // Prepare custom field data
     const customFields = documentData.projectCustomFields || [];
     const customFieldValues = documentData.customFieldValues || {};
     
-    // Create row data based on custom field values only
-    const rowData = customFields.map((field: any, index: number) => {
+    // Create row data starting with document ID, then custom field values
+    const customFieldRowData = customFields.map((field: any, index: number) => {
       let value = customFieldValues[field.name];
       
       // If field name doesn't match, try to find value by index or alternative matching
@@ -387,7 +387,128 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
       }
     });
     
-    if (rowData.length === 0) {
+    // Combine document ID as first column with custom field values
+    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    
+    if (customFieldRowData.length === 0) {
+      console.log('No custom fields defined, skipping Excel update');
+      return;
+    }
+
+    // Get all data from worksheet to find the document
+    const worksheetDataUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/usedRange`;
+    
+    const dataResponse = await fetch(worksheetDataUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!dataResponse.ok) {
+      console.log('Could not get worksheet data, falling back to add new row');
+      return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
+    }
+
+    const worksheetData = await dataResponse.json();
+    
+    if (!worksheetData.values || worksheetData.values.length === 0) {
+      console.log('No existing data found, adding new row');
+      return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
+    }
+
+    // Find the row with matching document ID (first column)
+    const targetDocumentId = documentData.documentId;
+    let targetRowIndex = -1;
+    
+    for (let i = 0; i < worksheetData.values.length; i++) {
+      const rowValues = worksheetData.values[i];
+      if (rowValues[0] === targetDocumentId) {
+        targetRowIndex = worksheetData.rowIndex + i + 1; // Convert to 1-based Excel row number
+        break;
+      }
+    }
+
+    if (targetRowIndex === -1) {
+      console.log(`Document ID ${targetDocumentId} not found in Excel, adding new row`);
+      return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
+    }
+
+    console.log(`Found existing document at row ${targetRowIndex}, updating...`);
+
+    // Update the existing row
+    const startColumn = 'A';
+    const endColumn = String.fromCharCode(64 + rowData.length); // A=65, so 64+1=A, 64+2=B, etc.
+    const range = `${startColumn}${targetRowIndex}:${endColumn}${targetRowIndex}`;
+    
+    console.log('Updating range:', range);
+    
+    const updateRangeUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('Sheet1')/range(address='${range}')`;
+    
+    const updateResponse = await fetch(updateRangeUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [rowData]
+      }),
+    });
+    
+    if (updateResponse.ok) {
+      console.log('Successfully updated Excel row');
+    } else {
+      const errorText = await updateResponse.text();
+      console.log('Update range error:', errorText);
+    }
+
+  } catch (error) {
+    console.error('Error updating row in Excel file:', error);
+  }
+}
+
+// Helper function to add row to Excel file using file ID
+async function addRowToExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
+  try {
+    // Prepare custom field data
+    const customFields = documentData.projectCustomFields || [];
+    const customFieldValues = documentData.customFieldValues || {};
+    
+    // Create row data starting with document ID, then custom field values
+    const customFieldRowData = customFields.map((field: any, index: number) => {
+      let value = customFieldValues[field.name];
+      
+      // If field name doesn't match, try to find value by index or alternative matching
+      if (value === undefined || value === null) {
+        const formFieldKeys = Object.keys(customFieldValues);
+        
+        if (formFieldKeys.length > index) {
+          value = customFieldValues[formFieldKeys[index]];
+        }
+      }
+      
+      if (value === undefined || value === null) {
+        return '';
+      }
+      
+      // Format the value based on field type
+      switch (field.type) {
+        case 'date':
+          return value ? new Date(value).toISOString().split('T')[0] : '';
+        case 'boolean':
+        case 'checkbox':
+          return value ? 'Yes' : 'No';
+        case 'number':
+          return typeof value === 'number' ? value.toString() : '';
+        default:
+          return value.toString();
+      }
+    });
+    
+    // Combine document ID as first column with custom field values
+    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    
+    if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
       return;
     }
@@ -471,7 +592,7 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
     const customFieldValues = documentData.customFieldValues || {};
     
     // Create row data based on custom field values
-    const rowData = customFields.map((field: any, index: number) => {
+    const customFieldRowData = customFields.map((field: any, index: number) => {
       let value = customFieldValues[field.name];
       
       // If field name doesn't match, try to find value by index or alternative matching
@@ -501,7 +622,10 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
       }
     });
     
-    if (rowData.length === 0) {
+    // Combine document ID as first column with custom field values
+    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    
+    if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
       return;
     }
@@ -725,39 +849,14 @@ export async function POST(request: NextRequest) {
           sharePointPath: sharePointResult.sharePointPath,
           sharePointId: sharePointResult.sharePointId,
           downloadUrl: sharePointResult.downloadUrl,
+          driveId: sharePointResult.driveId,
+          driveName: sharePointResult.driveName,
           siteUrl: config.site_url,
           documentLibrary: config.document_library
         });
 
         console.log(`Upload successful to ${config.name}: ${sharePointResult.sharePointPath}`);
 
-        // Log to Excel if enabled for this config
-        if (config.is_excel_logging_enabled && config.excel_sheet_path) {
-          await logToExcel(
-            {
-              tenantId: config.tenant_id,
-              clientId: config.client_id,
-              clientSecret: config.client_secret,
-              siteUrl: config.site_url,
-              isExcelLoggingEnabled: config.is_excel_logging_enabled,
-              excelSheetPath: config.excel_sheet_path
-            },
-            accessToken,
-            {
-              title: file.name.replace(/\.[^/.]+$/, ""),
-              fileName: file.name,
-              fileType: file.name.split('.').pop()?.toLowerCase() || 'unknown',
-              fileSize: file.size,
-              uploadedBy: `${userData.first_name} ${userData.last_name}`,
-              projectName: project.name,
-              sharePointPath: sharePointResult.sharePointPath,
-              configName: config.name,
-              customFieldValues: customFieldValues ? JSON.parse(customFieldValues) : {},
-              projectCustomFields: project.custom_fields || []
-            },
-            sharePointResult.driveId  // Pass the drive ID
-          );
-        }
       } catch (error) {
         console.error(`Failed to upload to ${config.name}:`, error);
         uploadErrors.push({
@@ -854,6 +953,51 @@ export async function POST(request: NextRequest) {
       customFieldValues: document.custom_field_values || {},
       revisionHistory: []
     };
+
+    // Log to Excel after document creation (so we have the document ID)
+    try {
+      for (const config of sharePointConfigs) {
+        if (config.is_excel_logging_enabled && config.excel_sheet_path) {
+          const accessToken = await getSharePointAccessToken({
+            tenantId: config.tenant_id,
+            clientId: config.client_id,
+            clientSecret: config.client_secret,
+            siteUrl: config.site_url,
+            documentLibrary: config.document_library,
+            versionControlEnabled: config.version_control_enabled
+          });
+
+          await logToExcel(
+            {
+              tenantId: config.tenant_id,
+              clientId: config.client_id,
+              clientSecret: config.client_secret,
+              siteUrl: config.site_url,
+              isExcelLoggingEnabled: config.is_excel_logging_enabled,
+              excelSheetPath: config.excel_sheet_path
+            },
+            accessToken,
+            {
+              documentId: document.id,
+              title: document.title,
+              fileName: document.file_name,
+              fileType: document.file_type,
+              fileSize: document.file_size,
+              uploadedBy: transformedDocument.uploadedBy,
+              projectName: project.name,
+              sharePointPath: document.sharepoint_path,
+              configName: config.name,
+              customFieldValues: document.custom_field_values || {},
+              projectCustomFields: project.custom_fields || []
+            },
+            uploadResults.find(result => result.configId === config.id)?.driveId
+          );
+        }
+      }
+    } catch (excelError) {
+      console.error('Error in Excel logging:', excelError);
+      // Don't fail the request if Excel logging fails
+    }
 
     return NextResponse.json({
       success: true,
