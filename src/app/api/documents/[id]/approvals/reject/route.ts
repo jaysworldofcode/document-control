@@ -8,6 +8,310 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Helper function to get SharePoint access token
+async function getSharePointAccessToken(config: {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+  siteUrl: string;
+  documentLibrary?: string;
+  versionControlEnabled?: boolean;
+}) {
+  try {
+    console.log('🔐 Getting access token for SharePoint...');
+    
+    // Check if we have an alternative token source for development/testing
+    if (process.env.SHAREPOINT_DEV_TOKEN) {
+      console.log('Using development token from environment variables');
+      return process.env.SHAREPOINT_DEV_TOKEN;
+    }
+    
+    const tokenUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`;
+    console.log(`Requesting token from ${tokenUrl}`);
+    
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    });
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`Token request failed: ${response.status} ${errorText}`);
+      
+      // Check if it's a conditional access policy issue (53003 error code)
+      if (errorText.includes('AADSTS53003') || errorText.includes('conditional access')) {
+        console.log('Detected conditional access policy restriction');
+        
+        // Fallback to cached token if available
+        if (process.env.SHAREPOINT_FALLBACK_TOKEN) {
+          console.log('Using fallback token');
+          return process.env.SHAREPOINT_FALLBACK_TOKEN;
+        }
+        
+        throw new Error(`Access blocked by conditional access policies. This application requires administrator configuration to comply with your organization's security policies.`);
+      }
+      
+      throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error('Error getting SharePoint access token:', error);
+    
+    // Final fallback for development/testing only
+    if (process.env.SHAREPOINT_EMERGENCY_FALLBACK === 'true' && process.env.NODE_ENV !== 'production') {
+      console.warn('Using emergency fallback token for development only');
+      return process.env.SHAREPOINT_EMERGENCY_FALLBACK_TOKEN || 'fallback-token';
+    }
+    
+    throw error;
+  }
+}
+
+// Helper function to handle SharePoint Excel status update
+async function handleSharePointExcelUpdate(documentId: string, newStatus: string) {
+  try {
+    console.log('handleSharePointExcelUpdate called for document:', documentId, 'with status:', newStatus);
+
+    // Get document with project and custom fields
+    const { data: document, error: docError } = await supabase
+      .from('documents')
+      .select(`
+        *,
+        projects!inner(
+          id,
+          name,
+          custom_fields,
+          organization_id
+        )
+      `)
+      .eq('id', documentId)
+      .single();
+
+    if (docError || !document) {
+      console.log('Document not found or error:', docError);
+      return;
+    }
+
+    // Get project SharePoint configurations
+    const { data: sharePointConfigs } = await supabase
+      .from('project_sharepoint_configs')
+      .select('*')
+      .eq('project_id', document.project_id)
+      .eq('is_enabled', true);
+
+    if (!sharePointConfigs || sharePointConfigs.length === 0) {
+      console.log('No enabled SharePoint configurations found for this project');
+      return;
+    }
+
+    // Find a config with Excel logging enabled
+    const config = sharePointConfigs.find(config => 
+      config.is_excel_logging_enabled && config.excel_sheet_path
+    );
+
+    if (!config) {
+      console.log('Excel logging not enabled for this project');
+      return;
+    }
+
+    // Get the organization's main SharePoint configuration for auth credentials
+    const { data: orgConfig, error: orgConfigError } = await supabase
+      .from('sharepoint_configs')
+      .select('*')
+      .eq('organization_id', document.projects.organization_id)
+      .single();
+
+    if (orgConfigError || !orgConfig) {
+      console.error('Organization SharePoint config not found:', orgConfigError);
+      return;
+    }
+
+    if (!orgConfig.tenant_id || !orgConfig.client_id || !orgConfig.client_secret) {
+      console.log('Incomplete SharePoint credentials in organization config');
+      return;
+    }
+
+    // Get SharePoint access token
+    const accessToken = await getSharePointAccessToken({
+      tenantId: orgConfig.tenant_id,
+      clientId: orgConfig.client_id,
+      clientSecret: orgConfig.client_secret,
+      siteUrl: config.site_url,
+      documentLibrary: config.document_library,
+      versionControlEnabled: config.version_control_enabled
+    });
+
+    // Prepare document data for Excel update
+    const documentData = {
+      documentId: document.id,
+      status: newStatus,
+      projectCustomFields: document.projects.custom_fields || [],
+      customFieldValues: document.custom_field_values || {}
+    };
+
+    // Parse SharePoint URL to get file info
+    let driveId, fileId;
+    
+    if (config.excel_sheet_path.startsWith('https://') && config.excel_sheet_path.includes('sharepoint.com')) {
+      // Handle SharePoint URL
+      const sourcedocMatch = config.excel_sheet_path.match(/sourcedoc=([^&]+)/);
+      if (sourcedocMatch) {
+        fileId = decodeURIComponent(sourcedocMatch[1]);
+        
+        // Find the drive containing this file
+        const sitesResponse = await fetch('https://graph.microsoft.com/v1.0/sites?search=*', {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        
+        if (sitesResponse.ok) {
+          const sitesData = await sitesResponse.json();
+          for (const site of sitesData.value) {
+            try {
+              const drivesResponse = await fetch(`https://graph.microsoft.com/v1.0/sites/${site.id}/drives`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              });
+              
+              if (drivesResponse.ok) {
+                const drivesData = await drivesResponse.json();
+                for (const drive of drivesData.value) {
+                  try {
+                    const fileResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${fileId}`, {
+                      headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    
+                    if (fileResponse.ok) {
+                      driveId = drive.id;
+                      console.log(`Found Excel file in drive: ${drive.name} (${drive.id})`);
+                      break;
+                    }
+                  } catch (e) {
+                    // File not in this drive, continue
+                  }
+                }
+              }
+              if (driveId) break;
+            } catch (e) {
+              // Site not accessible, continue
+            }
+          }
+        }
+      }
+    }
+
+    if (!driveId || !fileId) {
+      console.log('Could not resolve Excel file location');
+      return;
+    }
+
+    // Update the Excel file
+    await updateRowInExcelFile(accessToken, driveId, fileId, documentData);
+    console.log('Excel status update completed');
+
+  } catch (error) {
+    console.error('Error updating Excel with status change:', error);
+  }
+}
+
+// Helper function to update Excel row by document ID
+async function updateRowInExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
+  try {
+    console.log('updateRowInExcelFile called with:', { driveId, fileId, documentId: documentData.documentId });
+    
+    // Get custom fields
+    const customFields = documentData.projectCustomFields || [];
+    const customFieldValues = documentData.customFieldValues || {};
+    
+    if (customFields.length === 0) {
+      console.log('No custom fields defined, skipping Excel update');
+      return;
+    }
+
+    // Get the worksheet data to find the row with the matching document ID
+    const workbookResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets/Sheet1/usedRange`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!workbookResponse.ok) {
+      console.log('Worksheet is empty or file not found');
+      return;
+    }
+
+    const worksheetData = await workbookResponse.json();
+    const values = worksheetData.values || [];
+    
+    if (values.length === 0) {
+      console.log('Worksheet is empty');
+      return;
+    }
+
+    // Find the row with matching document ID (should be in first column)
+    const targetDocumentId = documentData.documentId;
+    let targetRowIndex = -1;
+    
+    for (let i = 0; i < values.length; i++) {
+      const row = values[i];
+      if (row[0] && row[0].toString() === targetDocumentId.toString()) {
+        targetRowIndex = worksheetData.rowIndex + i + 1; // Convert to 1-based Excel row number
+        break;
+      }
+    }
+
+    if (targetRowIndex === -1) {
+      console.log(`Document ID ${targetDocumentId} not found in Excel`);
+      return;
+    }
+
+    // Prepare the row data: [documentId, status, ...customFieldValues]
+    const rowData = [
+      documentData.documentId,
+      documentData.status,
+      ...customFields.map((field: any) => {
+        const value = customFieldValues[field.name];
+        return value !== undefined ? value : '';
+      })
+    ];
+
+    // Update the specific row
+    const updateRange = `Sheet1!A${targetRowIndex}:${String.fromCharCode(65 + rowData.length - 1)}${targetRowIndex}`;
+    
+    const updateResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets/Sheet1/range(address='${updateRange}')`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        values: [rowData]
+      })
+    });
+
+    if (updateResponse.ok) {
+      console.log('Successfully updated Excel row');
+    } else {
+      const errorText = await updateResponse.text();
+      console.log('Update row error:', errorText);
+    }
+
+  } catch (error) {
+    console.error('Error updating row in Excel file:', error);
+  }
+}
+
 // Helper function to verify JWT token and get user info
 async function verifyToken(request: NextRequest) {
   const cookieStore = await cookies();
@@ -158,6 +462,14 @@ export async function POST(request: NextRequest) {
     if (docError) {
       console.error('Error updating document status:', docError);
       return NextResponse.json({ error: 'Failed to update document status' }, { status: 500 });
+    }
+
+    // Update Excel with status change
+    try {
+      await handleSharePointExcelUpdate(documentId, 'rejected');
+    } catch (excelError) {
+      console.error('Excel update failed:', excelError);
+      // Don't fail the request if Excel update fails
     }
 
     // If there are files, handle them

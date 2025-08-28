@@ -257,8 +257,13 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const handleSendForApproval = async (approvers: any[], comments?: string) => {
     if (!sendingForApprovalDocument) return;
     
+    console.log('🚀 FRONTEND: Starting approval process for document:', sendingForApprovalDocument.id);
+    console.log('📋 FRONTEND: Approvers:', approvers);
+    console.log('💬 FRONTEND: Comments:', comments);
+    
     try {
       // Call the API to create the approval workflow
+      console.log('📤 FRONTEND: Making POST request to:', `/api/documents/${sendingForApprovalDocument.id}/approvals`);
       const response = await fetch(`/api/documents/${sendingForApprovalDocument.id}/approvals`, {
         method: 'POST',
         headers: {
@@ -270,21 +275,29 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         }),
       });
 
+      console.log('📥 FRONTEND: Response status:', response.status, response.statusText);
+
+      console.log('📥 FRONTEND: Response status:', response.status, response.statusText);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ FRONTEND: Response error:', errorData);
         throw new Error(errorData.error || 'Failed to send document for approval');
       }
 
       const result = await response.json();
-      console.log("Document sent for approval successfully:", result);
+      console.log("✅ FRONTEND: Document sent for approval successfully:", result);
       
       // Update the document in local state with the latest data from the server
       if (result.document) {
+        console.log('🔄 FRONTEND: Updating local state with document:', result.document);
         setProjectDocuments(prev => prev.map(doc => 
           doc.id === sendingForApprovalDocument.id
             ? { ...doc, ...result.document }
             : doc
         ));
+      } else {
+        console.warn('⚠️ FRONTEND: No document returned in response');
       }
       
       // Refresh project statistics

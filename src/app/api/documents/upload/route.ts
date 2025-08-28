@@ -387,8 +387,12 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
       }
     });
     
-    // Combine document ID as first column with custom field values
-    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    // Combine document ID as first column, status as second column, then custom field values
+    const rowData = [
+      documentData.documentId || '', 
+      documentData.status || 'draft', 
+      ...customFieldRowData
+    ];
     
     if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel update');
@@ -505,8 +509,12 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
       }
     });
     
-    // Combine document ID as first column with custom field values
-    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    // Combine document ID as first column, status as second column, then custom field values
+    const rowData = [
+      documentData.documentId || '', 
+      documentData.status || 'draft', 
+      ...customFieldRowData
+    ];
     
     if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
@@ -622,8 +630,12 @@ async function logToExcel(config: any, accessToken: string, documentData: any, d
       }
     });
     
-    // Combine document ID as first column with custom field values
-    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    // Combine document ID as first column, status as second column, then custom field values
+    const rowData = [
+      documentData.documentId || '', 
+      documentData.status || 'draft', 
+      ...customFieldRowData
+    ];
     
     if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel logging');
@@ -979,6 +991,7 @@ export async function POST(request: NextRequest) {
             accessToken,
             {
               documentId: document.id,
+              status: transformedDocument.status,
               title: document.title,
               fileName: document.file_name,
               fileType: document.file_type,

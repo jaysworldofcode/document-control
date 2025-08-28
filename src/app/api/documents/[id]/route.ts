@@ -82,8 +82,12 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
       }
     });
     
-    // Combine document ID as first column with custom field values
-    const rowData = [documentData.documentId || '', ...customFieldRowData];
+    // Combine document ID as first column, status as second column, then custom field values
+    const rowData = [
+      documentData.documentId || '', 
+      documentData.status || 'draft', 
+      ...customFieldRowData
+    ];
     
     if (customFieldRowData.length === 0) {
       console.log('No custom fields defined, skipping Excel update');
@@ -363,8 +367,11 @@ export async function PATCH(
       // Don't fail the request if logging fails
     }
 
-    // Update Excel logging if enabled (only if custom fields were changed)
-    if (JSON.stringify(customFieldValues) !== JSON.stringify(existingDoc.custom_field_values)) {
+    // Update Excel logging if enabled (if custom fields or status were changed)
+    const customFieldsChanged = JSON.stringify(customFieldValues) !== JSON.stringify(existingDoc.custom_field_values);
+    const statusChanged = status !== existingDoc.status;
+    
+    if (customFieldsChanged || statusChanged) {
       try {
         // Get project and SharePoint configurations
         const { data: project, error: projectError } = await supabase
@@ -393,6 +400,7 @@ export async function PATCH(
                 accessToken,
                 {
                   documentId: updatedDoc.id,
+                  status: updatedDoc.status || 'draft',
                   customFieldValues: customFieldValues || {},
                   projectCustomFields: project.custom_fields || []
                 }
