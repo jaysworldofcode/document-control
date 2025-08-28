@@ -2,8 +2,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 async function checkDocumentStatus() {
   const supabase = createClient(
-    'https://ntvwgvcqfpcqmfaaagyz.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50dndndmNxZnBjcW1mYWFhZ3l6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcxMjU1MCwiZXhwIjoyMDcxMjg4NTUwfQ.H3IzpVFlaCQVODxw8xnTMD1iCbbxWndr_NCMMmMkYI8'
+    '',
+    ''
   );
 
   // Check document status

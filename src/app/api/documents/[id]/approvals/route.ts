@@ -19,16 +19,13 @@ async function getSharePointAccessToken(config: {
   versionControlEnabled?: boolean;
 }) {
   try {
-    console.log('🔐 Getting access token for SharePoint...');
     
     // Check if we have an alternative token source for development/testing
     if (process.env.SHAREPOINT_DEV_TOKEN) {
-      console.log('Using development token from environment variables');
       return process.env.SHAREPOINT_DEV_TOKEN;
     }
     
     const tokenUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`;
-    console.log(`Requesting token from ${tokenUrl}`);
     
     const params = new URLSearchParams({
       client_id: config.clientId,
@@ -83,15 +80,10 @@ async function getSharePointAccessToken(config: {
 // Helper function to update Excel row by document ID (preserves existing data)
 async function updateRowInExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
   try {
-    console.log('updateRowInExcelFile called with:', { driveId, fileId, documentId: documentData.documentId });
     
     // Get custom fields
     const customFields = documentData.projectCustomFields || [];
     const customFieldValues = documentData.customFieldValues || {};
-    
-    if (customFields.length === 0) {
-      console.log('No custom fields defined, only updating status');
-    }
 
     // Get the worksheet data to find the row with the matching document ID
     const workbookResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets/Sheet1/usedRange`, {
@@ -102,7 +94,6 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
     });
 
     if (!workbookResponse.ok) {
-      console.log('Worksheet is empty or file not found, adding new row');
       return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
     }
 
@@ -110,7 +101,6 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
     const values = worksheetData.values || [];
     
     if (values.length === 0) {
-      console.log('Worksheet is empty, adding new row');
       return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
     }
 
@@ -129,11 +119,8 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
     }
 
     if (targetRowIndex === -1) {
-      console.log(`Document ID ${targetDocumentId} not found in Excel, adding new row`);
       return await addRowToExcelFile(accessToken, driveId, fileId, documentData);
     }
-
-    console.log('Found existing row at index:', targetRowIndex + 1, 'with data:', existingRowData);
 
     // Rebuild the row with custom field values (in case they were lost in previous operations)
     // Create the complete row data: [documentId, status, ...customFieldValues]
@@ -146,12 +133,8 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
       })
     ];
 
-    console.log('Rebuilding row with custom field values:', completeRowData);
-
     // Update the specific row with complete data (preserving + restoring custom fields)
     const updateRange = `Sheet1!A${targetRowIndex + 1}:${String.fromCharCode(65 + completeRowData.length - 1)}${targetRowIndex + 1}`;
-    
-    console.log('Updating range:', updateRange, 'with complete data:', completeRowData);
     
     const updateResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets/Sheet1/range(address='${updateRange}')`, {
       method: 'PATCH',
@@ -164,11 +147,9 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
       })
     });
 
-    if (updateResponse.ok) {
-      console.log('✅ Successfully updated Excel row while preserving other data');
-    } else {
+    if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.log('❌ Update row error:', errorText);
+      console.error('Excel update error:', errorText);
     }
 
   } catch (error) {

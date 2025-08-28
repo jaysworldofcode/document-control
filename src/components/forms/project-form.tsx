@@ -806,7 +806,7 @@ export function ProjectForm({
                               id="newConfigExcelPath"
                               value={newSharePointConfig.excelPath}
                               onChange={(e) => setNewSharePointConfig(prev => ({ ...prev, excelPath: e.target.value }))}
-                              placeholder="/DocumentLog.xlsx"
+                              placeholder="https://yoursite.sharepoint.com/:x:/r/sites/TESTSITEONLY/...."
                             />
                             <p className="text-xs text-muted-foreground">
                               Path to the Excel file where document metadata will be logged
