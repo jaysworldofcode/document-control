@@ -160,14 +160,12 @@ async function updateRowInExcelFile(accessToken: string, driveId: string, fileId
 // Helper function to add row to Excel file
 async function addRowToExcelFile(accessToken: string, driveId: string, fileId: string, documentData: any) {
   try {
-    console.log('addRowToExcelFile called with:', { driveId, fileId, documentId: documentData.documentId });
     
     // Get custom fields
     const customFields = documentData.projectCustomFields || [];
     const customFieldValues = documentData.customFieldValues || {};
     
     if (customFields.length === 0) {
-      console.log('No custom fields defined, skipping Excel logging');
       return;
     }
 
@@ -211,11 +209,9 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
       })
     });
     
-    if (updateResponse.ok) {
-      console.log('Successfully added row to Excel worksheet');
-    } else {
+    if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.log('Update range error:', errorText);
+      console.error('Excel add row error:', errorText);
     }
     
   } catch (error) {
@@ -226,7 +222,6 @@ async function addRowToExcelFile(accessToken: string, driveId: string, fileId: s
 // Helper function to handle SharePoint Excel status update
 async function handleSharePointExcelUpdate(documentId: string, newStatus: string) {
   try {
-    console.log('handleSharePointExcelUpdate called for document:', documentId, 'with status:', newStatus);
 
     // Get document with project and custom fields
     const { data: document, error: docError } = await supabase
@@ -244,7 +239,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       .single();
 
     if (docError || !document) {
-      console.log('Document not found or error:', docError);
       return;
     }
 
@@ -256,7 +250,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       .eq('is_enabled', true);
 
     if (!sharePointConfigs || sharePointConfigs.length === 0) {
-      console.log('No enabled SharePoint configurations found for this project');
       return;
     }
 
@@ -266,7 +259,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
     );
 
     if (!config) {
-      console.log('Excel logging not enabled for this project');
       return;
     }
 
@@ -278,12 +270,10 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       .single();
 
     if (orgConfigError || !orgConfig) {
-      console.error('Organization SharePoint config not found:', orgConfigError);
       return;
     }
 
     if (!orgConfig.tenant_id || !orgConfig.client_id || !orgConfig.client_secret) {
-      console.log('Incomplete SharePoint credentials in organization config');
       return;
     }
 
@@ -308,13 +298,10 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
     // Parse SharePoint URL to get file info using the same approach as upload route
     let driveId, fileId;
     
-    console.log('Excel sheet path:', config.excel_sheet_path);
-    
     if (config.excel_sheet_path.startsWith('https://') && config.excel_sheet_path.includes('sharepoint.com')) {
       // Extract sourcedoc ID from SharePoint URL (same as upload route)
       const sourcedocMatch = config.excel_sheet_path.match(/sourcedoc=([^&]+)/);
       if (!sourcedocMatch) {
-        console.log('Could not extract sourcedoc from SharePoint URL');
         return;
       }
       
@@ -322,15 +309,12 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       // Remove the %7B and %7D (URL encoded { and }) if present
       sourcedocId = sourcedocId.replace(/^%7B|%7D$/g, '').replace(/^{|}$/g, '');
       
-      console.log('Extracted sourcedoc ID:', sourcedocId);
-      
       // Use Microsoft Graph to get the file by sourcedoc ID
       // First, get the site information
       const hostMatch = config.site_url.match(/https?:\/\/([^\/]+)/);
       const siteUrlMatch = config.site_url.match(/\/sites\/([^\/]+)/);
       
       if (!hostMatch || !siteUrlMatch) {
-        console.log('Invalid SharePoint site URL format');
         return;
       }
       
@@ -346,7 +330,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       });
 
       if (!siteResponse.ok) {
-        console.log(`Failed to get site information: ${siteResponse.status}`);
         return;
       }
 
@@ -362,7 +345,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
       });
 
       if (!drivesResponse.ok) {
-        console.log(`Failed to get drives: ${drivesResponse.status}`);
         return;
       }
 
@@ -381,7 +363,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
           if (fileResponse.ok) {
             driveId = drive.id;
             fileId = sourcedocId;
-            console.log(`✅ Found Excel file in drive: ${drive.name}`);
             break;
           }
         } catch (error) {
@@ -391,13 +372,11 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
     }
 
     if (!driveId || !fileId) {
-      console.log('Could not resolve Excel file location');
       return;
     }
 
     // Update the Excel file
     await updateRowInExcelFile(accessToken, driveId, fileId, documentData);
-    console.log('Excel status update completed');
 
   } catch (error) {
     console.error('Error updating Excel with status change:', error);

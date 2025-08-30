@@ -345,7 +345,6 @@ async function handleSharePointExcelUpdate(documentId: string, newStatus: string
 // POST - Cancel approval workflow
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚫 Cancel approval workflow started');
     
     const user = await verifyToken(request);
     if (!user) {
@@ -354,8 +353,6 @@ export async function POST(request: NextRequest) {
 
     const params = await request.nextUrl.pathname.split('/');
     const documentId = params[params.indexOf('documents') + 1];
-
-    console.log('📄 Document ID:', documentId);
 
     if (!documentId) {
       return NextResponse.json({ error: 'Document ID is required' }, { status: 400 });
@@ -492,9 +489,8 @@ export async function POST(request: NextRequest) {
     // Update Excel with status change (preserve other data)
     try {
       await handleSharePointExcelUpdate(documentId, 'draft');
-      console.log('✅ Excel status updated to draft after workflow cancellation');
     } catch (excelError) {
-      console.error('❌ Excel update failed:', excelError);
+      console.error('Excel update failed:', excelError);
       // Don't fail the request if Excel update fails
     }
 
